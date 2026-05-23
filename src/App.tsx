@@ -713,7 +713,7 @@ export default function Necoder() {
         {/* ── オシロスコープにゃ ── */}
         <div
           style={{
-            margin: "14px 14px 0",
+            margin: "2px 14px 0 14px",
             background: "#10162A",
             borderRadius: "10px",
             border: "1px solid #2C3658",
