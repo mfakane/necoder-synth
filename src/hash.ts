@@ -5,6 +5,9 @@ export type HashState = {
   voiceIdx?: number;
   styleIdx?: number;
   morph?: number;
+  curveStart?: number;
+  curvePeak?: number;
+  curveEnd?: number;
   ps?: number;
   dm?: number;
   vib?: number;
@@ -37,6 +40,9 @@ export const parseHashState = (): HashState => {
     voiceIdx: voiceIndex >= 0 ? voiceIndex : undefined,
     styleIdx: styleIndex >= 0 ? styleIndex : undefined,
     morph: numFromHash(params, "morph", undefined, 0, 1),
+    curveStart: numFromHash(params, "curveStart", undefined, -12, 12),
+    curvePeak: numFromHash(params, "curvePeak", undefined, -12, 12),
+    curveEnd: numFromHash(params, "curveEnd", undefined, -12, 12),
     ps: numFromHash(params, "pitch", undefined, -12, 12),
     dm: numFromHash(params, "duration", undefined, 0.3, 2.5),
     vib: numFromHash(params, "vibrato", undefined, 0, 3),
@@ -49,6 +55,9 @@ export const makeHash = (state: FullHashState) => {
   params.set("voice", VOICES[state.voiceIdx].id);
   params.set("style", CRY_STYLES[state.styleIdx].id);
   params.set("morph", state.morph.toFixed(2));
+  params.set("curveStart", String(state.curveStart));
+  params.set("curvePeak", String(state.curvePeak));
+  params.set("curveEnd", String(state.curveEnd));
   params.set("pitch", String(state.ps));
   params.set("duration", state.dm.toFixed(2));
   params.set("vibrato", state.vib.toFixed(2));

@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { composeParams, morphLabel, parseNumberInput, playMeow } from "./audio";
+import {
+  IntonationControls,
+  type IntonationSlider,
+} from "./components/IntonationControls";
 import { KeyboardControls } from "./components/KeyboardControls";
 import { OptionGrid } from "./components/OptionGrid";
 import { SectionHeader } from "./components/SectionHeader";
@@ -19,6 +23,20 @@ type AudioWindow = Window &
   };
 
 type DraftNums = Record<string, string>;
+type IntonationPreset = {
+  label: string;
+  curveStart: number;
+  curvePeak: number;
+  curveEnd: number;
+};
+
+const INTONATION_PRESETS: IntonationPreset[] = [
+  { label: "フラット", curveStart: 0, curvePeak: 0, curveEnd: 0 },
+  { label: "にゃあ↑ーん", curveStart: 2, curvePeak: 5, curveEnd: 0 },
+  { label: "にゃーん？", curveStart: 0, curvePeak: -6, curveEnd: 8 },
+  { label: "低く入る", curveStart: -8, curvePeak: -6, curveEnd: 0 },
+  { label: "しょんぼり↓", curveStart: 8, curvePeak: -10, curveEnd: -7 },
+];
 React.version.toString();
 
 // ─────────────────────────────────────────────
@@ -32,6 +50,9 @@ export default function Necoder() {
   const [voiceIdx, setVoiceIdx] = useState(init.voiceIdx ?? 1);
   const [styleIdx, setStyleIdx] = useState(init.styleIdx ?? 0);
   const [morph, setMorph] = useState(init.morph ?? 0.5);
+  const [curveStart, setCurveStart] = useState(init.curveStart ?? 0);
+  const [curvePeak, setCurvePeak] = useState(init.curvePeak ?? 0);
+  const [curveEnd, setCurveEnd] = useState(init.curveEnd ?? 0);
   const [ps, setPs] = useState(init.ps ?? 0); // ピッチシフト (半音)
   const [dm, setDm] = useState(init.dm ?? 1.0); // デュレーション倍率
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
@@ -66,6 +87,9 @@ export default function Necoder() {
         voiceIdx,
         styleIdx,
         morph,
+        curveStart,
+        curvePeak,
+        curveEnd,
         ps,
         dm,
         vib,
@@ -74,7 +98,7 @@ export default function Necoder() {
       };
       return buildHash(state);
     },
-    [voiceIdx, styleIdx, morph, ps, dm, vib, vm],
+    [voiceIdx, styleIdx, morph, curveStart, curvePeak, curveEnd, ps, dm, vib, vm],
   );
 
   const commitHash = useCallback(
@@ -131,6 +155,17 @@ export default function Necoder() {
     [clearDraftNum, commitHash, morph],
   );
 
+  const commitIntonationValue = useCallback(
+    (keyName: string, rawValue: string, slider: IntonationSlider) => {
+      const inputValue = parseNumberInput(rawValue, slider.value, -12, 12);
+      const value = Math.round(inputValue);
+      slider.setValue(value);
+      commitHash({ [keyName]: value });
+      clearDraftNum(keyName);
+    },
+    [clearDraftNum, commitHash],
+  );
+
   // hashを手で貼り替えたときも復元するにゃ
   useEffect(() => {
     const applyHash = () => {
@@ -138,6 +173,9 @@ export default function Necoder() {
       if (next.voiceIdx !== undefined) setVoiceIdx(next.voiceIdx);
       if (next.styleIdx !== undefined) setStyleIdx(next.styleIdx);
       if (next.morph !== undefined) setMorph(next.morph);
+      if (next.curveStart !== undefined) setCurveStart(next.curveStart);
+      if (next.curvePeak !== undefined) setCurvePeak(next.curvePeak);
+      if (next.curveEnd !== undefined) setCurveEnd(next.curveEnd);
       if (next.ps !== undefined) setPs(next.ps);
       if (next.dm !== undefined) setDm(next.dm);
       if (next.vib !== undefined) setVib(next.vib);
@@ -183,6 +221,9 @@ export default function Necoder() {
         vib,
         vm: vm * velocityScale,
         morph,
+        curveStart,
+        curvePeak,
+        curveEnd,
       });
       if (timerRef.current) clearTimeout(timerRef.current);
       setIP(true);
@@ -192,7 +233,19 @@ export default function Necoder() {
         setDT(`🐱  ネコーダー ${morphLabel(morph)}`);
       }, dur * 1000);
     },
-    [voiceIdx, styleIdx, ps, dm, vib, vm, morph, getAudio],
+    [
+      voiceIdx,
+      styleIdx,
+      ps,
+      dm,
+      vib,
+      vm,
+      morph,
+      curveStart,
+      curvePeak,
+      curveEnd,
+      getAudio,
+    ],
   );
 
   useEffect(() => {
@@ -536,6 +589,47 @@ export default function Necoder() {
     },
   ];
 
+  const intonationSliders: IntonationSlider[] = [
+    {
+      label: "START",
+      jp: "出だし",
+      keyName: "curveStart",
+      value: curveStart,
+      setValue: setCurveStart,
+    },
+    {
+      label: "PEAK",
+      jp: "途中",
+      keyName: "curvePeak",
+      value: curvePeak,
+      setValue: setCurvePeak,
+    },
+    {
+      label: "END",
+      jp: "語尾",
+      keyName: "curveEnd",
+      value: curveEnd,
+      setValue: setCurveEnd,
+    },
+  ];
+
+  const applyIntonationPreset = useCallback(
+    (preset: IntonationPreset) => {
+      clearDraftNum("curveStart");
+      clearDraftNum("curvePeak");
+      clearDraftNum("curveEnd");
+      setCurveStart(preset.curveStart);
+      setCurvePeak(preset.curvePeak);
+      setCurveEnd(preset.curveEnd);
+      commitHash({
+        curveStart: preset.curveStart,
+        curvePeak: preset.curvePeak,
+        curveEnd: preset.curveEnd,
+      });
+    },
+    [clearDraftNum, commitHash],
+  );
+
   const col = voice.color;
 
   return (
@@ -562,6 +656,9 @@ export default function Necoder() {
           boxShadow:
             "0 28px 80px rgba(54,68,105,.22), inset 0 1px 0 rgba(255,255,255,.9)",
           overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
         }}
       >
         {/* ── ヘッダーにゃ ── */}
@@ -669,7 +766,7 @@ export default function Necoder() {
         </div>
 
         {/* ── 音色にゃ ── */}
-        <div style={{ padding: "14px 14px 0" }}>
+        <div style={{ padding: "0 14px" }}>
           <SectionHeader>VOICE / 音色</SectionHeader>
           <OptionGrid
             items={VOICES}
@@ -689,7 +786,7 @@ export default function Necoder() {
         </div>
 
         {/* ── 鳴き方にゃ ── */}
-        <div style={{ padding: "12px 14px 0" }}>
+        <div style={{ padding: "0 14px" }}>
           <SectionHeader>CRY STYLE / 鳴き方</SectionHeader>
           <OptionGrid
             items={CRY_STYLES}
@@ -715,7 +812,7 @@ export default function Necoder() {
         </div>
 
         {/* ── にゃーん度にゃ ── */}
-        <div style={{ padding: "12px 14px 0" }}>
+        <div style={{ padding: "0 14px" }}>
           <div
             style={{
               color: "#66708A",
@@ -890,8 +987,51 @@ export default function Necoder() {
           </button>
         </div>
 
+        {/* ── 抑揚にゃ ── */}
+        <IntonationControls
+          color={col}
+          sliders={intonationSliders}
+          presetSelect={
+            <select
+              value=""
+              aria-label="抑揚の設定例"
+              onChange={(event) => {
+                const preset = INTONATION_PRESETS.find(
+                  (item) => item.label === event.currentTarget.value,
+                );
+                if (preset) applyIntonationPreset(preset);
+              }}
+              style={{
+                maxWidth: "138px",
+                height: "24px",
+                borderRadius: "7px",
+                border: `1px solid ${col}55`,
+                background: "#FFFFFFAA",
+                color: col,
+                fontFamily: "'Nunito',sans-serif",
+                fontSize: "10px",
+                fontWeight: 900,
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">設定例</option>
+              {INTONATION_PRESETS.map((preset) => (
+                <option key={preset.label} value={preset.label}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          }
+          draftNums={draftNums}
+          setDraftNum={setDraftNum}
+          clearDraftNum={clearDraftNum}
+          commitNumericValue={commitIntonationValue}
+          commitHash={commitHash}
+        />
+
         {/* ── パラメータにゃ ── */}
-        <div style={{ padding: "0 14px 14px" }}>
+        <div style={{ padding: "0 14px" }}>
           <div
             style={{
               display: "flex",
@@ -1121,4 +1261,3 @@ export default function Necoder() {
     </div>
   );
 }
-

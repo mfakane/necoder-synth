@@ -20,7 +20,7 @@ export function KeyboardControls({
   onReleaseKey,
 }: KeyboardControlsProps) {
   return (
-    <div style={{ padding: "0 14px 18px" }}>
+    <div style={{ padding: "0 14px 14px" }}>
       <SectionHeader
         action={
           <button

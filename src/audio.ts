@@ -29,6 +29,9 @@ export type PlayMeowOptions = {
   vib?: number;
   vm?: number;
   morph?: number;
+  curveStart?: number;
+  curvePeak?: number;
+  curveEnd?: number;
 };
 
 export const clamp = (v: number, min: number, max: number) =>
@@ -77,6 +80,8 @@ export const morphLabel = (morph: number) => {
   if (morph < 0.75) return "にゃーん";
   return "超にゃーん";
 };
+
+const semitoneRatio = (semitone: number) => Math.pow(2, semitone / 12);
 
 export function playMeow(
   ctx: AudioContext,
@@ -152,15 +157,18 @@ export function playMeow(
   filt.connect(env);
   env.connect(dest);
 
-  const sf = s * tr;
-  const pf = pk * tr;
-  const ef = Math.max(e * tr, 20);
+  const sf = s * tr * semitoneRatio(opts.curveStart || 0);
+  const pf = pk * tr * semitoneRatio(opts.curvePeak || 0);
+  const ef = Math.max(e * tr * semitoneRatio(opts.curveEnd || 0), 20);
+  const hasStartCurve = Math.abs(opts.curveStart || 0) > 0.001;
+  const startHold = aDur * (isVoice ? 0.14 : 0.1);
+  const peakTime = aDur * (isVoice ? (hasStartCurve ? 0.3 : 0.12) : 0.3);
   [osc, osc2, osc3].forEach((o) => {
     o.frequency.setValueAtTime(sf, now);
-    o.frequency.linearRampToValueAtTime(
-      pf,
-      now + aDur * (isVoice ? 0.12 : 0.3),
-    );
+    if (hasStartCurve) {
+      o.frequency.linearRampToValueAtTime(sf, now + startHold);
+    }
+    o.frequency.linearRampToValueAtTime(pf, now + peakTime);
     if (isVoice) {
       const flutter = 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble;
       o.frequency.linearRampToValueAtTime(
