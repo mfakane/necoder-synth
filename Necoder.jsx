@@ -159,6 +159,8 @@ const KEYS = [
   { note: "ド↑", key: "k", st: 12 },
 ];
 
+const MIDI_NOTE_BASE = 60;
+
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 
 const numFromHash = (params, key, fallback, min, max) => {
@@ -172,6 +174,13 @@ const parseNumberInput = (value, fallback, min, max) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return clamp(parsed, min, max);
+};
+
+const midiNoteToSemitone = (note) => note - MIDI_NOTE_BASE;
+
+const midiNoteToKey = (note) => {
+  const semitone = midiNoteToSemitone(note);
+  return KEYS.find((key) => key.st === semitone)?.key || null;
 };
 
 const composeParams = (voice, style) => ({
@@ -389,6 +398,11 @@ export default function Necoder() {
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
   const [vm, setVm] = useState(init.vm ?? 0.8); // 音量倍率
   const [activeKey, setAK] = useState(null);
+  const [midiStatus, setMidiStatus] = useState(
+    typeof navigator !== "undefined" && navigator.requestMIDIAccess
+      ? "off"
+      : "unsupported",
+  );
   const [isPlay, setIP] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
   const [draftNums, setDraftNums] = useState({});
@@ -398,6 +412,11 @@ export default function Necoder() {
   const animRef = useRef(null);
   const colorRef = useRef(VOICES[1].color);
   const timerRef = useRef(null);
+  const midiAccessRef = useRef(null);
+  const midiInputsRef = useRef([]);
+  const activeMidiNotesRef = useRef(new Set());
+  const activeKeyRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const voice = VOICES[voiceIdx];
   const cryStyle = CRY_STYLES[styleIdx];
@@ -519,7 +538,7 @@ export default function Necoder() {
 
   // 鳴らすにゃ！
   const trigger = useCallback(
-    (st = 0) => {
+    (st = 0, velocityScale = 1) => {
       const { ctx, an } = getAudio();
       const v = VOICES[voiceIdx];
       const style = CRY_STYLES[styleIdx];
@@ -527,7 +546,7 @@ export default function Necoder() {
         ps,
         dm,
         vib,
-        vm,
+        vm: vm * velocityScale,
         morph,
       });
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -540,6 +559,99 @@ export default function Necoder() {
     },
     [voiceIdx, styleIdx, ps, dm, vib, vm, morph, getAudio],
   );
+
+  useEffect(() => {
+    activeKeyRef.current = activeKey;
+  }, [activeKey]);
+
+  useEffect(() => {
+    triggerRef.current = trigger;
+  }, [trigger]);
+
+  const clearMidiInputs = useCallback((resetKey = true) => {
+    midiInputsRef.current.forEach((input) => {
+      input.onmidimessage = null;
+    });
+    midiInputsRef.current = [];
+    activeMidiNotesRef.current.clear();
+    if (resetKey) setAK(null);
+  }, []);
+
+  const handleMidiMessage = useCallback(
+    (event) => {
+      const [status, note, velocity = 0] = event.data || [];
+      const command = status & 0xf0;
+      const isNoteOn = command === 0x90 && velocity > 0;
+      const isNoteOff = command === 0x80 || (command === 0x90 && velocity === 0);
+      if (!isNoteOn && !isNoteOff) return;
+
+      const key = midiNoteToKey(note);
+      if (isNoteOn) {
+        activeMidiNotesRef.current.add(note);
+        if (key) setAK(key);
+        triggerRef.current?.(
+          midiNoteToSemitone(note),
+          0.35 + (velocity / 127) * 0.65,
+        );
+        return;
+      }
+
+      activeMidiNotesRef.current.delete(note);
+      if (key && activeKeyRef.current === key) {
+        const latestKey =
+          [...activeMidiNotesRef.current].reverse().map(midiNoteToKey).find(Boolean) ||
+          null;
+        setAK(latestKey);
+      }
+    },
+    [],
+  );
+
+  const bindMidiInputs = useCallback(
+    (access) => {
+      clearMidiInputs();
+      const inputs = Array.from(access.inputs.values());
+      inputs.forEach((input) => {
+        input.onmidimessage = handleMidiMessage;
+      });
+      midiInputsRef.current = inputs;
+    },
+    [clearMidiInputs, handleMidiMessage],
+  );
+
+  const toggleMidi = useCallback(async () => {
+    if (!navigator.requestMIDIAccess) {
+      setMidiStatus("unsupported");
+      return;
+    }
+
+    if (midiStatus === "on") {
+      if (midiAccessRef.current) midiAccessRef.current.onstatechange = null;
+      clearMidiInputs();
+      midiAccessRef.current = null;
+      setMidiStatus("off");
+      return;
+    }
+
+    try {
+      const access = await navigator.requestMIDIAccess();
+      midiAccessRef.current = access;
+      bindMidiInputs(access);
+      access.onstatechange = () => bindMidiInputs(access);
+      setMidiStatus("on");
+    } catch {
+      clearMidiInputs();
+      midiAccessRef.current = null;
+      setMidiStatus("error");
+    }
+  }, [bindMidiInputs, clearMidiInputs, midiStatus]);
+
+  useEffect(() => {
+    return () => {
+      if (midiAccessRef.current) midiAccessRef.current.onstatechange = null;
+      clearMidiInputs(false);
+    };
+  }, [clearMidiInputs]);
 
   // オシロスコープ描画にゃ🎨
   useEffect(() => {
@@ -1402,6 +1514,9 @@ export default function Necoder() {
         <div style={{ padding: "0 14px 18px" }}>
           <div
             style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               color: "#66708A",
               fontSize: "9px",
               letterSpacing: "3px",
@@ -1409,7 +1524,55 @@ export default function Necoder() {
               fontFamily: "'Share Tech Mono',monospace",
             }}
           >
-            KEYBOARD / キーボード
+            <span>KEYBOARD / キーボード</span>
+            <button
+              type="button"
+              disabled={midiStatus === "unsupported"}
+              onClick={toggleMidi}
+              title="MIDIキーボード接続"
+              aria-label="MIDIキーボード接続"
+              style={{
+                minWidth: "72px",
+                height: "22px",
+                borderRadius: "7px",
+                border: `1px solid ${
+                  midiStatus === "on"
+                    ? col
+                    : midiStatus === "error"
+                      ? "#F06A6A"
+                      : "#CBD6E8"
+                }`,
+                background:
+                  midiStatus === "on"
+                    ? col
+                    : midiStatus === "unsupported"
+                      ? "#EEF2F8"
+                      : "#FFFFFFAA",
+                color:
+                  midiStatus === "on"
+                    ? "#FFFFFF"
+                    : midiStatus === "error"
+                      ? "#C64545"
+                      : midiStatus === "unsupported"
+                        ? "#9AA5BA"
+                        : col,
+                cursor: midiStatus === "unsupported" ? "not-allowed" : "pointer",
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: "9px",
+                fontWeight: 700,
+                letterSpacing: 0,
+                padding: "0 7px",
+                transition: "background .12s, color .12s, border-color .12s",
+              }}
+            >
+              {midiStatus === "on"
+                ? "MIDI ON"
+                : midiStatus === "unsupported"
+                  ? "NO MIDI"
+                  : midiStatus === "error"
+                    ? "MIDI ERR"
+                    : "MIDI OFF"}
+            </button>
           </div>
           <div style={{ display: "flex", gap: "4px" }}>
             {KEYS.map((k) => {
