@@ -1,393 +1,32 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { composeParams, morphLabel, parseNumberInput, playMeow } from "./audio";
+import { CRY_STYLES, KEYS, VOICES } from "./data";
+import { makeHash as buildHash, parseHashState } from "./hash";
+import {
+  midiNoteToKey,
+  midiNoteToSemitone,
+  midiVelocityScale,
+  parseMidiMessage,
+  type MidiStatus,
+} from "./midi";
+import { OptionGrid } from "./components/OptionGrid";
+import { SectionHeader } from "./components/SectionHeader";
+import { KeyboardControls } from "./components/KeyboardControls";
 
+type AudioWindow = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
+
+type DraftNums = Record<string, string>;
 React.version.toString();
-
-// ─────────────────────────────────────────────
-//  音色と鳴き方定義にゃ🐾
-//  s=startFreq, pk=peakFreq, e=endFreq (Hz)
-//  dur=秒, fFreq=フォルマントフィルタ, fQ=Q値
-//  vR=ビブラートレート, vD=ビブラート深さ
-//  vol=音量, wave=波形タイプ, atk=アタック, rel=リリース
-// ─────────────────────────────────────────────
-const VOICES = [
-  {
-    id: "white",
-    name: "白猫",
-    emoji: "🤍",
-    color: "#5CC8FF",
-    s: 500,
-    pk: 980,
-    e: 610,
-    fFreq: 1650,
-    fQ: 7,
-    vol: 0.48,
-    wave: "sawtooth",
-    durMul: 0.9,
-    atkMul: 0.85,
-    relMul: 0.8,
-    vDAdd: 2,
-  },
-  {
-    id: "orange",
-    name: "茶トラ",
-    emoji: "🧡",
-    color: "#FF9F43",
-    s: 380,
-    pk: 760,
-    e: 460,
-    fFreq: 1200,
-    fQ: 6,
-    vol: 0.55,
-    wave: "sawtooth",
-    durMul: 1,
-    atkMul: 1,
-    relMul: 1,
-    vDAdd: 0,
-  },
-  {
-    id: "brown",
-    name: "キジトラ",
-    emoji: "🤎",
-    color: "#00B894",
-    s: 440,
-    pk: 860,
-    e: 420,
-    fFreq: 1420,
-    fQ: 9,
-    vol: 0.6,
-    wave: "square",
-    durMul: 0.95,
-    atkMul: 0.75,
-    relMul: 0.85,
-    vDAdd: 4,
-  },
-  {
-    id: "black",
-    name: "黒猫",
-    emoji: "🖤",
-    color: "#9B8EC4",
-    s: 290,
-    pk: 560,
-    e: 290,
-    fFreq: 900,
-    fQ: 5,
-    vol: 0.5,
-    wave: "sawtooth",
-    durMul: 1.18,
-    atkMul: 1.25,
-    relMul: 1.45,
-    vDAdd: 7,
-  },
-];
-
-const CRY_STYLES = [
-  {
-    id: "nyaan",
-    name: "にゃーん",
-    mark: "😸",
-    sMul: 1,
-    pkMul: 1,
-    eMul: 1,
-    dur: 0.65,
-    atk: 0.06,
-    rel: 0.15,
-    vR: 4,
-    vD: 0,
-    volMul: 1,
-    fMul: 1,
-    fQAdd: 0,
-  },
-  {
-    id: "nyat",
-    name: "にゃっ",
-    mark: "🐱",
-    sMul: 1.42,
-    pkMul: 1.26,
-    eMul: 0.94,
-    dur: 0.16,
-    atk: 0.012,
-    rel: 0.04,
-    vR: 5,
-    vD: 0,
-    volMul: 1.18,
-    fMul: 1.15,
-    fQAdd: 2,
-    wave: "square",
-  },
-  {
-    id: "myau",
-    name: "みゃう",
-    mark: "😺",
-    sMul: 1.22,
-    pkMul: 1.55,
-    eMul: 1.14,
-    dur: 0.42,
-    atk: 0.028,
-    rel: 0.09,
-    vR: 5.8,
-    vD: 8,
-    volMul: 1.06,
-    fMul: 1.28,
-    fQAdd: 1,
-  },
-  {
-    id: "naao",
-    name: "なーお",
-    mark: "🙀",
-    sMul: 0.92,
-    pkMul: 0.9,
-    eMul: 0.58,
-    dur: 1.35,
-    atk: 0.09,
-    rel: 0.34,
-    vR: 3.5,
-    vD: 18,
-    volMul: 0.95,
-    fMul: 0.9,
-    fQAdd: -1,
-  },
-];
-
-const KEYS = [
-  { note: "ド", key: "a", st: 0 },
-  { note: "レ", key: "s", st: 2 },
-  { note: "ミ", key: "d", st: 4 },
-  { note: "ファ", key: "f", st: 5 },
-  { note: "ソ", key: "g", st: 7 },
-  { note: "ラ", key: "h", st: 9 },
-  { note: "シ", key: "j", st: 11 },
-  { note: "ド↑", key: "k", st: 12 },
-];
-
-const MIDI_NOTE_BASE = 60;
-
-const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-
-const numFromHash = (params, key, fallback, min, max) => {
-  if (!params.has(key)) return fallback;
-  const raw = Number(params.get(key));
-  if (!Number.isFinite(raw)) return fallback;
-  return clamp(raw, min, max);
-};
-
-const parseNumberInput = (value, fallback, min, max) => {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return clamp(parsed, min, max);
-};
-
-const midiNoteToSemitone = (note) => note - MIDI_NOTE_BASE;
-
-const midiNoteToKey = (note) => {
-  const semitone = midiNoteToSemitone(note);
-  return KEYS.find((key) => key.st === semitone)?.key || null;
-};
-
-const composeParams = (voice, style) => ({
-  s: voice.s * style.sMul,
-  pk: voice.pk * style.pkMul,
-  e: voice.e * style.eMul,
-  dur: style.dur * voice.durMul,
-  fFreq: voice.fFreq * style.fMul,
-  fQ: Math.max(1, voice.fQ + style.fQAdd),
-  vR: style.vR,
-  vD: style.vD + voice.vDAdd,
-  vol: voice.vol * style.volMul,
-  wave: style.wave || voice.wave,
-  atk: style.atk * voice.atkMul,
-  rel: style.rel * voice.relMul,
-});
-
-const getHashState = () => {
-  if (typeof window === "undefined") return {};
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const voiceId = params.get("voice");
-  const styleId = params.get("style");
-  const voiceIndex = VOICES.findIndex((v) => v.id === voiceId);
-  const styleIndex = CRY_STYLES.findIndex((s) => s.id === styleId);
-  return {
-    voiceIdx: voiceIndex >= 0 ? voiceIndex : undefined,
-    styleIdx: styleIndex >= 0 ? styleIndex : undefined,
-    morph: numFromHash(params, "morph", undefined, 0, 1),
-    ps: numFromHash(params, "pitch", undefined, -12, 12),
-    dm: numFromHash(params, "duration", undefined, 0.3, 2.5),
-    vib: numFromHash(params, "vibrato", undefined, 0, 3),
-    vm: numFromHash(params, "volume", undefined, 0.1, 1),
-  };
-};
-
-const morphTone = (morph) => {
-  const m = clamp(morph, 0, 1);
-  const emphasis = Math.max(0, (m - 0.5) * 2);
-  return {
-    voice: m,
-    consonant: m * (0.75 + emphasis * 0.25),
-    mouth: m * (0.7 + emphasis * 0.3),
-    wobble: m * (0.55 + emphasis * 0.3),
-    rough: m * (0.28 + emphasis * 0.17),
-  };
-};
-
-const morphLabel = (morph) => {
-  if (morph < 0.25) return "ピコ猫";
-  if (morph < 0.75) return "にゃーん";
-  return "超にゃーん";
-};
-
-// ─────────────────────────────────────────────
-//  猫声合成エンジンにゃ🎛️
-// ─────────────────────────────────────────────
-function playMeow(ctx, dest, params, semitone = 0, opts = {}) {
-  const { s, pk, e, dur, fFreq, fQ, vR, vD, vol, wave, atk, rel } = params;
-  const tone = morphTone(opts.morph || 0);
-  const isVoice = tone.voice > 0.001;
-  const tr = Math.pow(2, (semitone + (opts.ps || 0)) / 12);
-  const aDur = dur * (opts.dm || 1);
-  const v = vol * (opts.vm || 0.8);
-  const vibD = vD * (opts.vib || 1) * tr;
-  const now = ctx.currentTime;
-
-  // ノード生成にゃ
-  const osc = ctx.createOscillator();
-  const osc2 = ctx.createOscillator();
-  const osc3 = ctx.createOscillator();
-  const g2 = ctx.createGain();
-  const g3 = ctx.createGain();
-  const filt = ctx.createBiquadFilter();
-  const filt2 = ctx.createBiquadFilter();
-  const formMix = ctx.createGain();
-  const lfo = ctx.createOscillator();
-  const lfoG = ctx.createGain();
-  const env = ctx.createGain();
-
-  osc.type = wave;
-  osc2.type = wave;
-  osc3.type = "sawtooth";
-  osc2.detune.value = 7; // コーラス感
-  osc3.detune.value = -13;
-  g2.gain.value = 0.3;
-  g3.gain.value = isVoice ? tone.rough * 0.18 : 0;
-
-  filt.type = "bandpass";
-  filt.frequency.value = fFreq;
-  filt.Q.value = fQ * (1 - tone.mouth * 0.25);
-
-  filt2.type = "bandpass";
-  filt2.frequency.value = fFreq * 2.15;
-  filt2.Q.value = 1 + tone.mouth * 8;
-  formMix.gain.value = tone.mouth * 0.34;
-
-  lfo.type = "sine";
-  lfo.frequency.value = vR + tone.wobble * 3;
-  lfoG.gain.setValueAtTime(isVoice ? vibD * 0.25 : vibD, now);
-  if (isVoice) {
-    lfoG.gain.linearRampToValueAtTime(vibD + (4 + tone.wobble * 12) * tr, now + aDur * 0.68);
-  }
-
-  // 接続にゃ
-  lfo.connect(lfoG);
-  lfoG.connect(osc.frequency);
-  lfoG.connect(osc2.frequency);
-  lfoG.connect(osc3.frequency);
-  osc.connect(filt);
-  osc2.connect(g2);
-  osc3.connect(g3);
-  g2.connect(filt);
-  g3.connect(filt);
-  if (isVoice) {
-    osc.connect(filt2);
-    g2.connect(filt2);
-    g3.connect(filt2);
-    filt2.connect(formMix);
-    formMix.connect(env);
-  }
-  filt.connect(env);
-  env.connect(dest);
-
-  // 周波数スイープにゃ～ (猫っぽい抑揚)
-  const sf = s * tr;
-  const pf = pk * tr;
-  const ef = Math.max(e * tr, 20);
-  [osc, osc2, osc3].forEach((o) => {
-    o.frequency.setValueAtTime(sf, now);
-    o.frequency.linearRampToValueAtTime(pf, now + aDur * (isVoice ? 0.12 : 0.3));
-    if (isVoice) {
-      const flutter = 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble;
-      o.frequency.linearRampToValueAtTime(pf * (0.74 + tone.wobble * 0.08) * flutter, now + aDur * 0.24);
-      o.frequency.linearRampToValueAtTime(pf * (1.0 + tone.wobble * 0.08), now + aDur * 0.34);
-    }
-    o.frequency.linearRampToValueAtTime(ef, now + aDur);
-  });
-
-  if (isVoice) {
-    filt.frequency.setValueAtTime(Math.max(fFreq * (0.95 + tone.mouth * 0.2), 420), now);
-    filt.frequency.linearRampToValueAtTime(fFreq * (1.1 + tone.mouth * 0.9), now + aDur * 0.18);
-    filt.frequency.linearRampToValueAtTime(fFreq * (1.0 + tone.mouth * 0.22), now + aDur);
-    filt2.frequency.setValueAtTime(fFreq * (1.75 + tone.mouth * 0.55), now);
-    filt2.frequency.linearRampToValueAtTime(fFreq * (2.1 + tone.mouth * 1.25), now + aDur * 0.22);
-    filt2.frequency.linearRampToValueAtTime(fFreq * (1.8 + tone.mouth * 0.75), now + aDur);
-
-    const noiseLen = Math.max(
-      1,
-      Math.floor(ctx.sampleRate * Math.min(0.03 + tone.consonant * 0.08, aDur * 0.24)),
-    );
-    const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < noiseLen; i++) {
-      const decay = 1 - i / noiseLen;
-      data[i] = (Math.random() * 2 - 1) * decay * decay;
-    }
-    const noise = ctx.createBufferSource();
-    const noiseFilt = ctx.createBiquadFilter();
-    const noiseEnv = ctx.createGain();
-    const chirp = ctx.createOscillator();
-    const chirpGain = ctx.createGain();
-    noise.buffer = noiseBuf;
-    noiseFilt.type = "highpass";
-    noiseFilt.frequency.value = (950 + tone.consonant * 1800) * tr;
-    noiseFilt.Q.value = 0.7 + tone.consonant * 2.5;
-    noiseEnv.gain.setValueAtTime(v * tone.consonant * 0.38, now);
-    noiseEnv.gain.exponentialRampToValueAtTime(0.001, now + noiseLen / ctx.sampleRate);
-    noise.connect(noiseFilt);
-    noiseFilt.connect(noiseEnv);
-    noiseEnv.connect(dest);
-
-    chirp.type = "triangle";
-    chirp.frequency.setValueAtTime(pk * (1.0 + tone.consonant * 0.9) * tr, now);
-    chirp.frequency.exponentialRampToValueAtTime(
-      Math.max(e * (0.95 + tone.consonant * 0.35) * tr, 60),
-      now + Math.min(aDur * 0.25, 0.18),
-    );
-    chirpGain.gain.setValueAtTime(v * tone.consonant * 0.13, now);
-    chirpGain.gain.exponentialRampToValueAtTime(0.001, now + Math.min(aDur * 0.3, 0.22));
-    chirp.connect(chirpGain);
-    chirpGain.connect(dest);
-
-    noise.start(now);
-    noise.stop(now + noiseLen / ctx.sampleRate + 0.02);
-    chirp.start(now);
-    chirp.stop(now + Math.min(aDur * 0.4, 0.24));
-  }
-
-  // エンベロープにゃ
-  env.gain.setValueAtTime(0.001, now);
-  env.gain.linearRampToValueAtTime(v, now + atk);
-  env.gain.setValueAtTime(v, now + aDur - rel);
-  env.gain.linearRampToValueAtTime(0.001, now + aDur);
-
-  [osc, osc2, osc3, lfo].forEach((o) => {
-    o.start(now);
-    o.stop(now + aDur + 0.1);
-  });
-  return aDur;
-}
 
 // ─────────────────────────────────────────────
 //  ネコーダーUIにゃ🐱
 // ─────────────────────────────────────────────
 export default function Necoder() {
   const initialHash = useRef(null);
-  if (!initialHash.current) initialHash.current = getHashState();
+  if (!initialHash.current) initialHash.current = parseHashState();
   const init = initialHash.current;
 
   const [voiceIdx, setVoiceIdx] = useState(init.voiceIdx ?? 1);
@@ -398,14 +37,14 @@ export default function Necoder() {
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
   const [vm, setVm] = useState(init.vm ?? 0.8); // 音量倍率
   const [activeKey, setAK] = useState(null);
-  const [midiStatus, setMidiStatus] = useState(
+  const [midiStatus, setMidiStatus] = useState<MidiStatus>(
     typeof navigator !== "undefined" && navigator.requestMIDIAccess
       ? "off"
       : "unsupported",
   );
   const [isPlay, setIP] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
-  const [draftNums, setDraftNums] = useState({});
+  const [draftNums, setDraftNums] = useState<DraftNums>({});
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
@@ -433,15 +72,7 @@ export default function Necoder() {
         vm,
         ...next,
       };
-      const params = new URLSearchParams();
-      params.set("voice", VOICES[state.voiceIdx].id);
-      params.set("style", CRY_STYLES[state.styleIdx].id);
-      params.set("morph", state.morph.toFixed(2));
-      params.set("pitch", String(state.ps));
-      params.set("duration", state.dm.toFixed(2));
-      params.set("vibrato", state.vib.toFixed(2));
-      params.set("volume", state.vm.toFixed(2));
-      return `#${params.toString()}`;
+      return buildHash(state);
     },
     [voiceIdx, styleIdx, morph, ps, dm, vib, vm],
   );
@@ -503,7 +134,7 @@ export default function Necoder() {
   // hashを手で貼り替えたときも復元するにゃ
   useEffect(() => {
     const applyHash = () => {
-      const next = getHashState();
+      const next = parseHashState();
       if (next.voiceIdx !== undefined) setVoiceIdx(next.voiceIdx);
       if (next.styleIdx !== undefined) setStyleIdx(next.styleIdx);
       if (next.morph !== undefined) setMorph(next.morph);
@@ -524,7 +155,11 @@ export default function Necoder() {
   // AudioContext 遅延初期化にゃ (Autoplay Policy対策)
   const getAudio = useCallback(() => {
     if (!audioRef.current) {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioWindow = window as AudioWindow;
+      const AudioContextCtor =
+        audioWindow.AudioContext || audioWindow.webkitAudioContext;
+      if (!AudioContextCtor) throw new Error("Web Audio is not supported");
+      const ctx = new AudioContextCtor();
       const an = ctx.createAnalyser();
       an.fftSize = 512;
       an.smoothingTimeConstant = 0.8;
@@ -579,19 +214,17 @@ export default function Necoder() {
 
   const handleMidiMessage = useCallback(
     (event) => {
-      const [status, note, velocity = 0] = event.data || [];
-      const command = status & 0xf0;
-      const isNoteOn = command === 0x90 && velocity > 0;
-      const isNoteOff = command === 0x80 || (command === 0x90 && velocity === 0);
-      if (!isNoteOn && !isNoteOff) return;
+      const message = parseMidiMessage(event.data || []);
+      if (message.type === "ignore") return;
 
+      const { note } = message;
       const key = midiNoteToKey(note);
-      if (isNoteOn) {
+      if (message.type === "noteon") {
         activeMidiNotesRef.current.add(note);
         if (key) setAK(key);
         triggerRef.current?.(
           midiNoteToSemitone(note),
-          0.35 + (velocity / 127) * 0.65,
+          midiVelocityScale(message.velocity),
         );
         return;
       }
@@ -610,7 +243,7 @@ export default function Necoder() {
   const bindMidiInputs = useCallback(
     (access) => {
       clearMidiInputs();
-      const inputs = Array.from(access.inputs.values());
+      const inputs = Array.from(access.inputs.values()) as MIDIInput[];
       inputs.forEach((input) => {
         input.onmidimessage = handleMidiMessage;
       });
@@ -1036,116 +669,48 @@ export default function Necoder() {
 
         {/* ── 音色にゃ ── */}
         <div style={{ padding: "14px 14px 0" }}>
-          <div
-            style={{
-              color: "#66708A",
-              fontSize: "9px",
-              letterSpacing: "3px",
-              marginBottom: "8px",
-              fontFamily: "'Share Tech Mono',monospace",
+          <SectionHeader>VOICE / 音色</SectionHeader>
+          <OptionGrid
+            items={VOICES}
+            selectedIndex={voiceIdx}
+            columns={4}
+            accentColor={col}
+            onSelect={(index) => {
+              setVoiceIdx(index);
+              commitHash({ voiceIdx: index });
             }}
-          >
-            VOICE / 音色
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: "7px",
-            }}
-          >
-            {VOICES.map((v, i) => {
-              const sel = voiceIdx === i;
-              return (
-                <button
-                  key={v.id}
-                  onClick={() => {
-                    setVoiceIdx(i);
-                    commitHash({ voiceIdx: i });
-                  }}
-                  style={{
-                    background: sel ? v.color + "22" : "#F4F7FC",
-                    border: `1px solid ${sel ? v.color : "#D9E2F0"}`,
-                    borderRadius: "10px",
-                    padding: "9px 5px",
-                    cursor: "pointer",
-                    transition: "all .13s",
-                    color: sel ? v.color : "#46526A",
-                    fontFamily: "'Nunito',sans-serif",
-                    fontWeight: 800,
-                    fontSize: "11px",
-                    textAlign: "center",
-                    boxShadow: sel ? `0 0 18px ${v.color}40` : "none",
-                  }}
-                >
-                  <div style={{ fontSize: "22px", marginBottom: "3px" }}>
-                    {v.emoji}
-                  </div>
-                  {v.name}
-                </button>
-              );
-            })}
-          </div>
+            renderIcon={(v) => (
+              <div style={{ fontSize: "22px", marginBottom: "3px" }}>
+                {v.emoji}
+              </div>
+            )}
+          />
         </div>
 
         {/* ── 鳴き方にゃ ── */}
         <div style={{ padding: "12px 14px 0" }}>
-          <div
-            style={{
-              color: "#66708A",
-              fontSize: "9px",
-              letterSpacing: "3px",
-              marginBottom: "8px",
-              fontFamily: "'Share Tech Mono',monospace",
+          <SectionHeader>CRY STYLE / 鳴き方</SectionHeader>
+          <OptionGrid
+            items={CRY_STYLES}
+            selectedIndex={styleIdx}
+            columns={4}
+            accentColor={col}
+            onSelect={(index) => {
+              setStyleIdx(index);
+              commitHash({ styleIdx: index });
             }}
-          >
-            CRY STYLE / 鳴き方
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
-              gap: "7px",
-            }}
-          >
-            {CRY_STYLES.map((style, i) => {
-              const sel = styleIdx === i;
-              return (
-                <button
-                  key={style.id}
-                  onClick={() => {
-                    setStyleIdx(i);
-                    commitHash({ styleIdx: i });
-                  }}
-                  style={{
-                    background: sel ? col + "22" : "#F4F7FC",
-                    border: `1px solid ${sel ? col : "#D9E2F0"}`,
-                    borderRadius: "10px",
-                    padding: "9px 5px",
-                    cursor: "pointer",
-                    transition: "all .13s",
-                    color: sel ? col : "#46526A",
-                    fontFamily: "'Nunito',sans-serif",
-                    fontWeight: 800,
-                    fontSize: "11px",
-                    textAlign: "center",
-                    boxShadow: sel ? `0 0 18px ${col}40` : "none",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontFamily: "'Share Tech Mono',monospace",
-                      fontSize: "18px",
-                      marginBottom: "3px",
-                    }}
-                  >
-                    {style.mark}
-                  </div>
-                  {style.name}
-                </button>
-              );
-            })}
-          </div>
+            renderIcon={(style) => (
+              <div
+                style={{
+                  fontFamily: "'Share Tech Mono',monospace",
+                  fontSize: "18px",
+                  marginBottom: "3px",
+                }}
+              >
+                {style.mark}
+              </div>
+            )}
+          />
         </div>
 
         {/* ── にゃーん度にゃ ── */}
@@ -1301,7 +866,8 @@ export default function Necoder() {
           <button
             className={isPlay ? "neko-shake" : "neko-pulse"}
             onClick={() => trigger(0)}
-            style={{
+            style={
+              {
               "--nc": col,
               width: "100%",
               padding: "16px",
@@ -1316,7 +882,8 @@ export default function Necoder() {
               letterSpacing: "4px",
               transition: "background .08s, color .08s",
               boxShadow: isPlay ? `0 0 40px ${col}88` : undefined,
-            }}
+              } as React.CSSProperties
+            }
           >
             {isPlay ? `${cryStyle.mark}  ${voice.name} ${cryStyle.name}` : "🐾  にゃ～ん！"}
           </button>
@@ -1511,141 +1078,19 @@ export default function Necoder() {
         </div>
 
         {/* ── 鍵盤にゃ🎹 ── */}
-        <div style={{ padding: "0 14px 18px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              color: "#66708A",
-              fontSize: "9px",
-              letterSpacing: "3px",
-              marginBottom: "8px",
-              fontFamily: "'Share Tech Mono',monospace",
-            }}
-          >
-            <span>KEYBOARD / キーボード</span>
-            <button
-              type="button"
-              disabled={midiStatus === "unsupported"}
-              onClick={toggleMidi}
-              title="MIDIキーボード接続"
-              aria-label="MIDIキーボード接続"
-              style={{
-                minWidth: "72px",
-                height: "22px",
-                borderRadius: "7px",
-                border: `1px solid ${
-                  midiStatus === "on"
-                    ? col
-                    : midiStatus === "error"
-                      ? "#F06A6A"
-                      : "#CBD6E8"
-                }`,
-                background:
-                  midiStatus === "on"
-                    ? col
-                    : midiStatus === "unsupported"
-                      ? "#EEF2F8"
-                      : "#FFFFFFAA",
-                color:
-                  midiStatus === "on"
-                    ? "#FFFFFF"
-                    : midiStatus === "error"
-                      ? "#C64545"
-                      : midiStatus === "unsupported"
-                        ? "#9AA5BA"
-                        : col,
-                cursor: midiStatus === "unsupported" ? "not-allowed" : "pointer",
-                fontFamily: "'Share Tech Mono',monospace",
-                fontSize: "9px",
-                fontWeight: 700,
-                letterSpacing: 0,
-                padding: "0 7px",
-                transition: "background .12s, color .12s, border-color .12s",
-              }}
-            >
-              {midiStatus === "on"
-                ? "MIDI ON"
-                : midiStatus === "unsupported"
-                  ? "NO MIDI"
-                  : midiStatus === "error"
-                    ? "MIDI ERR"
-                    : "MIDI OFF"}
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: "4px" }}>
-            {KEYS.map((k) => {
-              const act = activeKey === k.key;
-              return (
-                <button
-                  key={k.key}
-                  onMouseDown={() => {
-                    setAK(k.key);
-                    trigger(k.st);
-                  }}
-                  onMouseUp={() => setAK(null)}
-                  onMouseLeave={() => setAK(null)}
-                  onTouchStart={(e) => {
-                    e.preventDefault();
-                    setAK(k.key);
-                    trigger(k.st);
-                  }}
-                  onTouchEnd={() => setAK(null)}
-                  style={{
-                    flex: 1,
-                    background: act ? col : "#F9FBFF",
-                    border: `1px solid ${act ? col : "#CBD6E8"}`,
-                    borderRadius: "0 0 9px 9px",
-                    padding: "26px 0 7px",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "flex-end",
-                    gap: "3px",
-                    transition: "all .07s",
-                    boxShadow: act ? `0 0 22px ${col}77` : "none",
-                  }}
-                >
-                  <div
-                    style={{
-                      color: act ? "#FFFFFF" : "#2E3A52",
-                      fontSize: "9px",
-                      fontWeight: 800,
-                      transition: "color .07s",
-                    }}
-                  >
-                    {k.note}
-                  </div>
-                  <div
-                    style={{
-                      color: act ? "#FFFFFFCC" : "#68748D",
-                      fontSize: "8px",
-                      fontFamily: "'Share Tech Mono',monospace",
-                      transition: "color .07s",
-                    }}
-                  >
-                    {k.key.toUpperCase()}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <div
-            style={{
-              color: "#68748D",
-              fontSize: "9px",
-              textAlign: "center",
-              marginTop: "7px",
-              fontFamily: "'Share Tech Mono',monospace",
-              letterSpacing: "1px",
-            }}
-          >
-            A S D F G H J K キーでもにゃ～ん演奏できるにゃ 🐾
-          </div>
-        </div>
+        <KeyboardControls
+          activeKey={activeKey}
+          color={col}
+          midiStatus={midiStatus}
+          onToggleMidi={toggleMidi}
+          onPressKey={(key, semitone) => {
+            setAK(key);
+            trigger(semitone);
+          }}
+          onReleaseKey={() => setAK(null)}
+        />
       </div>
     </div>
   );
 }
+

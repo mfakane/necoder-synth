@@ -1,7 +1,8 @@
 {
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build --base=./ && node scripts/inline-dist.mjs",
+    "build": "tsc --noEmit && vite build --base=./ && node scripts/inline-dist.mjs",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
@@ -9,5 +10,10 @@
     "react": "latest",
     "react-dom": "latest",
     "vite": "^5.4.21"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.3"
   }
 }
