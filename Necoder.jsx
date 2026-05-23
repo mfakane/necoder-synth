@@ -157,21 +157,32 @@ const getHashState = () => {
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const presetId = params.get("preset");
   const presetIndex = PRESETS.findIndex((p) => p.id === presetId);
-  const mode = params.get("mode");
-  const safeMode = ["chip", "voice", "custom"].includes(mode) ? mode : undefined;
-  const includeCustom = safeMode === "custom";
   return {
     pIdx: presetIndex >= 0 ? presetIndex : undefined,
-    mode: safeMode,
+    morph: numFromHash(params, "morph", undefined, 0, 1),
     ps: numFromHash(params, "pitch", undefined, -12, 12),
     dm: numFromHash(params, "duration", undefined, 0.3, 2.5),
     vib: numFromHash(params, "vibrato", undefined, 0, 3),
     vm: numFromHash(params, "volume", undefined, 0.1, 1),
-    consonant: includeCustom ? numFromHash(params, "consonant", undefined, 0, 1) : undefined,
-    mouth: includeCustom ? numFromHash(params, "mouth", undefined, 0, 1) : undefined,
-    wobble: includeCustom ? numFromHash(params, "wobble", undefined, 0, 1) : undefined,
-    rough: includeCustom ? numFromHash(params, "rough", undefined, 0, 1) : undefined,
   };
+};
+
+const morphTone = (morph) => {
+  const m = clamp(morph, 0, 1);
+  const emphasis = Math.max(0, (m - 0.5) * 2);
+  return {
+    voice: m,
+    consonant: m * (0.75 + emphasis * 0.25),
+    mouth: m * (0.7 + emphasis * 0.3),
+    wobble: m * (0.55 + emphasis * 0.3),
+    rough: m * (0.28 + emphasis * 0.17),
+  };
+};
+
+const morphLabel = (morph) => {
+  if (morph < 0.25) return "ピコ猫";
+  if (morph < 0.75) return "にゃーん";
+  return "超にゃーん";
 };
 
 // ─────────────────────────────────────────────
@@ -179,21 +190,8 @@ const getHashState = () => {
 // ─────────────────────────────────────────────
 function playMeow(ctx, dest, params, semitone = 0, opts = {}) {
   const { s, pk, e, dur, fFreq, fQ, vR, vD, vol, wave, atk, rel } = params;
-  const isCustom = opts.mode === "custom";
-  const isVoice = opts.mode === "voice" || isCustom;
-  const tone = isCustom
-    ? {
-        consonant: opts.consonant ?? 0.65,
-        mouth: opts.mouth ?? 0.65,
-        wobble: opts.wobble ?? 0.45,
-        rough: opts.rough ?? 0.35,
-      }
-    : {
-        consonant: 0.75,
-        mouth: 0.7,
-        wobble: 0.55,
-        rough: 0.28,
-      };
+  const tone = morphTone(opts.morph || 0);
+  const isVoice = tone.voice > 0.001;
   const tr = Math.pow(2, (semitone + (opts.ps || 0)) / 12);
   const aDur = dur * (opts.dm || 1);
   const v = vol * (opts.vm || 0.8);
@@ -223,12 +221,12 @@ function playMeow(ctx, dest, params, semitone = 0, opts = {}) {
 
   filt.type = "bandpass";
   filt.frequency.value = fFreq;
-  filt.Q.value = isVoice ? fQ * (0.95 - tone.mouth * 0.25) : fQ;
+  filt.Q.value = fQ * (1 - tone.mouth * 0.25);
 
   filt2.type = "bandpass";
   filt2.frequency.value = fFreq * 2.15;
-  filt2.Q.value = isVoice ? 4 + tone.mouth * 5 : 1;
-  formMix.gain.value = isVoice ? tone.mouth * 0.34 : 0;
+  filt2.Q.value = 1 + tone.mouth * 8;
+  formMix.gain.value = tone.mouth * 0.34;
 
   lfo.type = "sine";
   lfo.frequency.value = vR + tone.wobble * 3;
@@ -265,7 +263,7 @@ function playMeow(ctx, dest, params, semitone = 0, opts = {}) {
     o.frequency.setValueAtTime(sf, now);
     o.frequency.linearRampToValueAtTime(pf, now + aDur * (isVoice ? 0.12 : 0.3));
     if (isVoice) {
-      const flutter = isCustom ? 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble : 1;
+      const flutter = 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble;
       o.frequency.linearRampToValueAtTime(pf * (0.74 + tone.wobble * 0.08) * flutter, now + aDur * 0.24);
       o.frequency.linearRampToValueAtTime(pf * (1.0 + tone.wobble * 0.08), now + aDur * 0.34);
     }
@@ -344,15 +342,11 @@ export default function Necoder() {
   const init = initialHash.current;
 
   const [pIdx, setPIdx] = useState(init.pIdx ?? 0);
-  const [mode, setMode] = useState(init.mode ?? "chip");
+  const [morph, setMorph] = useState(init.morph ?? 0);
   const [ps, setPs] = useState(init.ps ?? 0); // ピッチシフト (半音)
   const [dm, setDm] = useState(init.dm ?? 1.0); // デュレーション倍率
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
   const [vm, setVm] = useState(init.vm ?? 0.8); // 音量倍率
-  const [consonant, setConsonant] = useState(init.consonant ?? 0.65); // 子音の強さ
-  const [mouth, setMouth] = useState(init.mouth ?? 0.65); // 口の動き
-  const [wobble, setWobble] = useState(init.wobble ?? 0.45); // 声の揺れ
-  const [rough, setRough] = useState(init.rough ?? 0.35); // ざらつき
   const [activeKey, setAK] = useState(null);
   const [isPlay, setIP] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
@@ -369,33 +363,23 @@ export default function Necoder() {
     (next = {}) => {
       const state = {
         pIdx,
-        mode,
+        morph,
         ps,
         dm,
         vib,
         vm,
-        consonant,
-        mouth,
-        wobble,
-        rough,
         ...next,
       };
-    const params = new URLSearchParams();
+      const params = new URLSearchParams();
       params.set("preset", PRESETS[state.pIdx].id);
-      params.set("mode", state.mode);
+      params.set("morph", state.morph.toFixed(2));
       params.set("pitch", String(state.ps));
       params.set("duration", state.dm.toFixed(2));
       params.set("vibrato", state.vib.toFixed(2));
       params.set("volume", state.vm.toFixed(2));
-      if (state.mode === "custom") {
-        params.set("consonant", state.consonant.toFixed(2));
-        params.set("mouth", state.mouth.toFixed(2));
-        params.set("wobble", state.wobble.toFixed(2));
-        params.set("rough", state.rough.toFixed(2));
-      }
       return `#${params.toString()}`;
     },
-    [pIdx, mode, ps, dm, vib, vm, consonant, mouth, wobble, rough],
+    [pIdx, morph, ps, dm, vib, vm],
   );
 
   const commitHash = useCallback(
@@ -412,30 +396,16 @@ export default function Necoder() {
     [makeHash],
   );
 
-  const clearHash = useCallback(() => {
-    if (window.location.hash) {
-      window.history.replaceState(
-        null,
-        "",
-        `${window.location.pathname}${window.location.search}`,
-      );
-    }
-  }, []);
-
   // hashを手で貼り替えたときも復元するにゃ
   useEffect(() => {
     const applyHash = () => {
       const next = getHashState();
       if (next.pIdx !== undefined) setPIdx(next.pIdx);
-      if (next.mode !== undefined) setMode(next.mode);
+      if (next.morph !== undefined) setMorph(next.morph);
       if (next.ps !== undefined) setPs(next.ps);
       if (next.dm !== undefined) setDm(next.dm);
       if (next.vib !== undefined) setVib(next.vib);
       if (next.vm !== undefined) setVm(next.vm);
-      if (next.consonant !== undefined) setConsonant(next.consonant);
-      if (next.mouth !== undefined) setMouth(next.mouth);
-      if (next.wobble !== undefined) setWobble(next.wobble);
-      if (next.rough !== undefined) setRough(next.rough);
     };
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
@@ -471,27 +441,17 @@ export default function Necoder() {
         dm,
         vib,
         vm,
-        consonant,
-        mouth,
-        wobble,
-        rough,
-        mode,
+        morph,
       });
       if (timerRef.current) clearTimeout(timerRef.current);
       setIP(true);
       setDT(`${pr.emoji}  ${pr.name}`);
       timerRef.current = setTimeout(() => {
         setIP(false);
-        setDT(
-          mode === "custom"
-            ? "🐱  ネコーダー カスタムにゃーん"
-            : mode === "voice"
-              ? "🐱  ネコーダー にゃーんモード"
-              : "🐱  ネコーダーにゃ～",
-        );
+        setDT(`🐱  ネコーダー ${morphLabel(morph)}`);
       }, dur * 1000);
     },
-    [pIdx, ps, dm, vib, vm, consonant, mouth, wobble, rough, mode, getAudio],
+    [pIdx, ps, dm, vib, vm, morph, getAudio],
   );
 
   // オシロスコープ描画にゃ🎨
@@ -675,58 +635,6 @@ export default function Necoder() {
       fmt: (v) => Math.round(v * 100),
       unit: "%",
     },
-    ...(mode === "custom"
-      ? [
-          {
-            label: "CONSONANT",
-            jp: "子音の強さ",
-            keyName: "consonant",
-            val: consonant,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            set: setConsonant,
-            fmt: (v) => Math.round(v * 100),
-            unit: "%",
-          },
-          {
-            label: "MOUTH",
-            jp: "口の動き",
-            keyName: "mouth",
-            val: mouth,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            set: setMouth,
-            fmt: (v) => Math.round(v * 100),
-            unit: "%",
-          },
-          {
-            label: "WOBBLE",
-            jp: "声の揺れ",
-            keyName: "wobble",
-            val: wobble,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            set: setWobble,
-            fmt: (v) => Math.round(v * 100),
-            unit: "%",
-          },
-          {
-            label: "ROUGHNESS",
-            jp: "ざらつき",
-            keyName: "rough",
-            val: rough,
-            min: 0,
-            max: 1,
-            step: 0.05,
-            set: setRough,
-            fmt: (v) => Math.round(v * 100),
-            unit: "%",
-          },
-        ]
-      : []),
   ];
 
   const col = preset.color;
@@ -914,7 +822,7 @@ export default function Necoder() {
           </div>
         </div>
 
-        {/* ── モードにゃ ── */}
+        {/* ── にゃーん度にゃ ── */}
         <div style={{ padding: "12px 14px 0" }}>
           <div
             style={{
@@ -925,67 +833,106 @@ export default function Necoder() {
               fontFamily: "'Share Tech Mono',monospace",
             }}
           >
-            MODE / モード
+            MEOW MORPH / モフ度
           </div>
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
-              gap: "8px",
               background: "#EEF3FA",
               border: "1px solid #D6DFEF",
               borderRadius: "10px",
-              padding: "5px",
+              padding: "11px 12px 9px",
             }}
           >
-            {[
-              { id: "chip", label: "8BIT", jp: "ピコ猫" },
-              { id: "voice", label: "MEOW", jp: "にゃーん" },
-              { id: "custom", label: "CUSTOM", jp: "調整" },
-            ].map((m) => {
-              const sel = mode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => {
-                    setMode(m.id);
-                    commitHash({ mode: m.id });
-                    setDT(
-                      m.id === "voice"
-                        ? "🐱  ネコーダー にゃーんモード"
-                        : m.id === "custom"
-                          ? "🐱  ネコーダー カスタムにゃーん"
-                          : "🐱  ネコーダー 8BITモード",
-                    );
-                  }}
-                  style={{
-                    background: sel ? col : "transparent",
-                    border: "0",
-                    borderRadius: "7px",
-                    color: sel ? "#FFFFFF" : "#46526A",
-                    cursor: "pointer",
-                    padding: "9px 8px",
-                    fontFamily: "'Nunito',sans-serif",
-                    fontWeight: 900,
-                    transition: "background .12s, color .12s, box-shadow .12s",
-                    boxShadow: sel ? `0 8px 20px ${col}45` : "none",
-                  }}
-                >
-                  <div
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "8px",
+              }}
+            >
+              <div
+                style={{
+                  color: "#46526A",
+                  fontSize: "12px",
+                  fontWeight: 900,
+                }}
+              >
+                {morphLabel(morph)}
+              </div>
+              <div
+                style={{
+                  color: col,
+                  fontFamily: "'Share Tech Mono',monospace",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                }}
+              >
+                {Math.round(morph * 100)}%
+              </div>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={morph}
+              onChange={(e) => setMorph(Number(e.target.value))}
+              onPointerUp={(e) =>
+                commitHash({ morph: Number(e.currentTarget.value) })
+              }
+              onKeyUp={(e) =>
+                commitHash({ morph: Number(e.currentTarget.value) })
+              }
+              onBlur={(e) =>
+                commitHash({ morph: Number(e.currentTarget.value) })
+              }
+              style={{
+                width: "100%",
+                accentColor: col,
+                background: `linear-gradient(to right, ${col} 0%, ${col} ${morph * 100}%, #D6DFEF ${morph * 100}%, #D6DFEF 100%)`,
+              }}
+            />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3,1fr)",
+                gap: "6px",
+                marginTop: "8px",
+              }}
+            >
+              {[
+                { label: "ピコ猫", value: 0 },
+                { label: "にゃーん", value: 0.5 },
+                { label: "超にゃーん", value: 1 },
+              ].map((m) => {
+                const sel = Math.abs(morph - m.value) < 0.005;
+                return (
+                  <button
+                    key={m.label}
+                    onClick={() => {
+                      setMorph(m.value);
+                      commitHash({ morph: m.value });
+                      setDT(`🐱  ネコーダー ${m.label}`);
+                    }}
                     style={{
-                      fontSize: "13px",
-                      letterSpacing: "2px",
-                      fontFamily: "'Share Tech Mono',monospace",
+                      background: sel ? col : "#FFFFFFAA",
+                      border: `1px solid ${sel ? col : "#D6DFEF"}`,
+                      borderRadius: "7px",
+                      color: sel ? "#FFFFFF" : "#46526A",
+                      cursor: "pointer",
+                      padding: "7px 4px",
+                      fontFamily: "'Nunito',sans-serif",
+                      fontSize: "11px",
+                      fontWeight: 900,
+                      transition: "background .12s, color .12s",
                     }}
                   >
                     {m.label}
-                  </div>
-                  <div style={{ fontSize: "10px", marginTop: "2px" }}>
-                    {m.jp}
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
