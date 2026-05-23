@@ -3,132 +3,148 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 React.version.toString();
 
 // ─────────────────────────────────────────────
-//  プリセット定義にゃ🐾
+//  音色と鳴き方定義にゃ🐾
 //  s=startFreq, pk=peakFreq, e=endFreq (Hz)
 //  dur=秒, fFreq=フォルマントフィルタ, fQ=Q値
 //  vR=ビブラートレート, vD=ビブラート深さ
 //  vol=音量, wave=波形タイプ, atk=アタック, rel=リリース
 // ─────────────────────────────────────────────
-const PRESETS = [
+const VOICES = [
   {
-    id: "nya",
-    name: "にゃ～",
-    emoji: "😸",
-    color: "#FF6B9D",
-    p: {
-      s: 380,
-      pk: 760,
-      e: 460,
-      dur: 0.65,
-      fFreq: 1200,
-      fQ: 6,
-      vR: 4,
-      vD: 0,
-      vol: 0.55,
-      wave: "sawtooth",
-      atk: 0.06,
-      rel: 0.15,
-    },
+    id: "white",
+    name: "白猫",
+    emoji: "🤍",
+    color: "#5CC8FF",
+    s: 500,
+    pk: 980,
+    e: 610,
+    fFreq: 1650,
+    fQ: 7,
+    vol: 0.48,
+    wave: "sawtooth",
+    durMul: 0.9,
+    atkMul: 0.85,
+    relMul: 0.8,
+    vDAdd: 2,
   },
   {
-    id: "mya",
-    name: "みゃあ！",
-    emoji: "😺",
-    color: "#FFB347",
-    p: {
-      s: 620,
-      pk: 1280,
-      e: 720,
-      dur: 0.3,
-      fFreq: 1800,
-      fQ: 9,
-      vR: 5,
-      vD: 0,
-      vol: 0.65,
-      wave: "sawtooth",
-      atk: 0.02,
-      rel: 0.06,
-    },
+    id: "orange",
+    name: "茶トラ",
+    emoji: "🧡",
+    color: "#FF9F43",
+    s: 380,
+    pk: 760,
+    e: 460,
+    fFreq: 1200,
+    fQ: 6,
+    vol: 0.55,
+    wave: "sawtooth",
+    durMul: 1,
+    atkMul: 1,
+    relMul: 1,
+    vDAdd: 0,
   },
   {
-    id: "funya",
-    name: "ふにゃ～",
-    emoji: "😾",
+    id: "brown",
+    name: "キジトラ",
+    emoji: "🤎",
+    color: "#00B894",
+    s: 440,
+    pk: 860,
+    e: 420,
+    fFreq: 1420,
+    fQ: 9,
+    vol: 0.6,
+    wave: "square",
+    durMul: 0.95,
+    atkMul: 0.75,
+    relMul: 0.85,
+    vDAdd: 4,
+  },
+  {
+    id: "black",
+    name: "黒猫",
+    emoji: "🖤",
     color: "#9B8EC4",
-    p: {
-      s: 270,
-      pk: 460,
-      e: 220,
-      dur: 1.4,
-      fFreq: 850,
-      fQ: 5,
-      vR: 4,
-      vD: 22,
-      vol: 0.42,
-      wave: "sawtooth",
-      atk: 0.12,
-      rel: 0.32,
-    },
+    s: 290,
+    pk: 560,
+    e: 290,
+    fFreq: 900,
+    fQ: 5,
+    vol: 0.5,
+    wave: "sawtooth",
+    durMul: 1.18,
+    atkMul: 1.25,
+    relMul: 1.45,
+    vDAdd: 7,
+  },
+];
+
+const CRY_STYLES = [
+  {
+    id: "nyaan",
+    name: "にゃーん",
+    mark: "😸",
+    sMul: 1,
+    pkMul: 1,
+    eMul: 1,
+    dur: 0.65,
+    atk: 0.06,
+    rel: 0.15,
+    vR: 4,
+    vD: 0,
+    volMul: 1,
+    fMul: 1,
+    fQAdd: 0,
   },
   {
     id: "nyat",
-    name: "にゃっ！",
-    emoji: "🐱",
-    color: "#00D4AA",
-    p: {
-      s: 540,
-      pk: 960,
-      e: 430,
-      dur: 0.15,
-      fFreq: 1500,
-      fQ: 10,
-      vR: 5,
-      vD: 0,
-      vol: 0.72,
-      wave: "square",
-      atk: 0.01,
-      rel: 0.04,
-    },
+    name: "にゃっ",
+    mark: "🐱",
+    sMul: 1.42,
+    pkMul: 1.26,
+    eMul: 0.94,
+    dur: 0.16,
+    atk: 0.012,
+    rel: 0.04,
+    vR: 5,
+    vD: 0,
+    volMul: 1.18,
+    fMul: 1.15,
+    fQAdd: 2,
+    wave: "square",
   },
   {
-    id: "kyun",
-    name: "きゅ～ん",
-    emoji: "😻",
-    color: "#CC88FF",
-    p: {
-      s: 560,
-      pk: 1650,
-      e: 880,
-      dur: 0.5,
-      fFreq: 2100,
-      fQ: 7,
-      vR: 6.5,
-      vD: 18,
-      vol: 0.5,
-      wave: "sawtooth",
-      atk: 0.04,
-      rel: 0.11,
-    },
+    id: "myau",
+    name: "みゃう",
+    mark: "😺",
+    sMul: 1.22,
+    pkMul: 1.55,
+    eMul: 1.14,
+    dur: 0.42,
+    atk: 0.028,
+    rel: 0.09,
+    vR: 5.8,
+    vD: 8,
+    volMul: 1.06,
+    fMul: 1.28,
+    fQAdd: 1,
   },
   {
-    id: "nyaoh",
-    name: "にゃ～お",
-    emoji: "🙀",
-    color: "#FF5555",
-    p: {
-      s: 350,
-      pk: 680,
-      e: 260,
-      dur: 1.7,
-      fFreq: 1050,
-      fQ: 5,
-      vR: 3.5,
-      vD: 28,
-      vol: 0.48,
-      wave: "sawtooth",
-      atk: 0.09,
-      rel: 0.38,
-    },
+    id: "naao",
+    name: "なーお",
+    mark: "🙀",
+    sMul: 0.92,
+    pkMul: 0.9,
+    eMul: 0.58,
+    dur: 1.35,
+    atk: 0.09,
+    rel: 0.34,
+    vR: 3.5,
+    vD: 18,
+    volMul: 0.95,
+    fMul: 0.9,
+    fQAdd: -1,
   },
 ];
 
@@ -158,13 +174,31 @@ const parseNumberInput = (value, fallback, min, max) => {
   return clamp(parsed, min, max);
 };
 
+const composeParams = (voice, style) => ({
+  s: voice.s * style.sMul,
+  pk: voice.pk * style.pkMul,
+  e: voice.e * style.eMul,
+  dur: style.dur * voice.durMul,
+  fFreq: voice.fFreq * style.fMul,
+  fQ: Math.max(1, voice.fQ + style.fQAdd),
+  vR: style.vR,
+  vD: style.vD + voice.vDAdd,
+  vol: voice.vol * style.volMul,
+  wave: style.wave || voice.wave,
+  atk: style.atk * voice.atkMul,
+  rel: style.rel * voice.relMul,
+});
+
 const getHashState = () => {
   if (typeof window === "undefined") return {};
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const presetId = params.get("preset");
-  const presetIndex = PRESETS.findIndex((p) => p.id === presetId);
+  const voiceId = params.get("voice");
+  const styleId = params.get("style");
+  const voiceIndex = VOICES.findIndex((v) => v.id === voiceId);
+  const styleIndex = CRY_STYLES.findIndex((s) => s.id === styleId);
   return {
-    pIdx: presetIndex >= 0 ? presetIndex : undefined,
+    voiceIdx: voiceIndex >= 0 ? voiceIndex : undefined,
+    styleIdx: styleIndex >= 0 ? styleIndex : undefined,
     morph: numFromHash(params, "morph", undefined, 0, 1),
     ps: numFromHash(params, "pitch", undefined, -12, 12),
     dm: numFromHash(params, "duration", undefined, 0.3, 2.5),
@@ -347,8 +381,9 @@ export default function Necoder() {
   if (!initialHash.current) initialHash.current = getHashState();
   const init = initialHash.current;
 
-  const [pIdx, setPIdx] = useState(init.pIdx ?? 0);
-  const [morph, setMorph] = useState(init.morph ?? 0);
+  const [voiceIdx, setVoiceIdx] = useState(init.voiceIdx ?? 1);
+  const [styleIdx, setStyleIdx] = useState(init.styleIdx ?? 0);
+  const [morph, setMorph] = useState(init.morph ?? 0.5);
   const [ps, setPs] = useState(init.ps ?? 0); // ピッチシフト (半音)
   const [dm, setDm] = useState(init.dm ?? 1.0); // デュレーション倍率
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
@@ -361,15 +396,17 @@ export default function Necoder() {
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
   const animRef = useRef(null);
-  const colorRef = useRef(PRESETS[0].color);
+  const colorRef = useRef(VOICES[1].color);
   const timerRef = useRef(null);
 
-  const preset = PRESETS[pIdx];
+  const voice = VOICES[voiceIdx];
+  const cryStyle = CRY_STYLES[styleIdx];
 
   const makeHash = useCallback(
     (next = {}) => {
       const state = {
-        pIdx,
+        voiceIdx,
+        styleIdx,
         morph,
         ps,
         dm,
@@ -378,7 +415,8 @@ export default function Necoder() {
         ...next,
       };
       const params = new URLSearchParams();
-      params.set("preset", PRESETS[state.pIdx].id);
+      params.set("voice", VOICES[state.voiceIdx].id);
+      params.set("style", CRY_STYLES[state.styleIdx].id);
       params.set("morph", state.morph.toFixed(2));
       params.set("pitch", String(state.ps));
       params.set("duration", state.dm.toFixed(2));
@@ -386,7 +424,7 @@ export default function Necoder() {
       params.set("volume", state.vm.toFixed(2));
       return `#${params.toString()}`;
     },
-    [pIdx, morph, ps, dm, vib, vm],
+    [voiceIdx, styleIdx, morph, ps, dm, vib, vm],
   );
 
   const commitHash = useCallback(
@@ -447,7 +485,8 @@ export default function Necoder() {
   useEffect(() => {
     const applyHash = () => {
       const next = getHashState();
-      if (next.pIdx !== undefined) setPIdx(next.pIdx);
+      if (next.voiceIdx !== undefined) setVoiceIdx(next.voiceIdx);
+      if (next.styleIdx !== undefined) setStyleIdx(next.styleIdx);
       if (next.morph !== undefined) setMorph(next.morph);
       if (next.ps !== undefined) setPs(next.ps);
       if (next.dm !== undefined) setDm(next.dm);
@@ -458,10 +497,10 @@ export default function Necoder() {
     return () => window.removeEventListener("hashchange", applyHash);
   }, []);
 
-  // プリセット変更でカラー更新にゃ
+  // 音色変更でカラー更新にゃ
   useEffect(() => {
-    colorRef.current = PRESETS[pIdx].color;
-  }, [pIdx]);
+    colorRef.current = VOICES[voiceIdx].color;
+  }, [voiceIdx]);
 
   // AudioContext 遅延初期化にゃ (Autoplay Policy対策)
   const getAudio = useCallback(() => {
@@ -482,8 +521,9 @@ export default function Necoder() {
   const trigger = useCallback(
     (st = 0) => {
       const { ctx, an } = getAudio();
-      const pr = PRESETS[pIdx];
-      const dur = playMeow(ctx, an, pr.p, st, {
+      const v = VOICES[voiceIdx];
+      const style = CRY_STYLES[styleIdx];
+      const dur = playMeow(ctx, an, composeParams(v, style), st, {
         ps,
         dm,
         vib,
@@ -492,13 +532,13 @@ export default function Necoder() {
       });
       if (timerRef.current) clearTimeout(timerRef.current);
       setIP(true);
-      setDT(`${pr.emoji}  ${pr.name}`);
+      setDT(`${style.mark}  ${v.name} ${style.name}`);
       timerRef.current = setTimeout(() => {
         setIP(false);
         setDT(`🐱  ネコーダー ${morphLabel(morph)}`);
       }, dur * 1000);
     },
-    [pIdx, ps, dm, vib, vm, morph, getAudio],
+    [voiceIdx, styleIdx, ps, dm, vib, vm, morph, getAudio],
   );
 
   // オシロスコープ描画にゃ🎨
@@ -714,7 +754,7 @@ export default function Necoder() {
     },
   ];
 
-  const col = preset.color;
+  const col = voice.color;
 
   return (
     <div
@@ -786,7 +826,7 @@ export default function Necoder() {
               transform: isPlay ? "scale(1.15)" : "scale(1)",
             }}
           >
-            {isPlay ? preset.emoji : "🎹"}
+            {isPlay ? cryStyle.mark : "🎹"}
           </div>
         </div>
 
@@ -845,7 +885,7 @@ export default function Necoder() {
           </div>
         </div>
 
-        {/* ── プリセットにゃ ── */}
+        {/* ── 音色にゃ ── */}
         <div style={{ padding: "14px 14px 0" }}>
           <div
             style={{
@@ -856,43 +896,103 @@ export default function Necoder() {
               fontFamily: "'Share Tech Mono',monospace",
             }}
           >
-            PRESET / プリセット
+            VOICE / 音色
           </div>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
+              gridTemplateColumns: "repeat(4,1fr)",
               gap: "7px",
             }}
           >
-            {PRESETS.map((pr, i) => {
-              const sel = pIdx === i;
+            {VOICES.map((v, i) => {
+              const sel = voiceIdx === i;
               return (
                 <button
-                  key={pr.id}
+                  key={v.id}
                   onClick={() => {
-                    setPIdx(i);
-                    commitHash({ pIdx: i });
+                    setVoiceIdx(i);
+                    commitHash({ voiceIdx: i });
                   }}
                   style={{
-                    background: sel ? pr.color + "22" : "#F4F7FC",
-                    border: `1px solid ${sel ? pr.color : "#D9E2F0"}`,
+                    background: sel ? v.color + "22" : "#F4F7FC",
+                    border: `1px solid ${sel ? v.color : "#D9E2F0"}`,
                     borderRadius: "10px",
-                    padding: "10px 6px",
+                    padding: "9px 5px",
                     cursor: "pointer",
                     transition: "all .13s",
-                    color: sel ? pr.color : "#46526A",
+                    color: sel ? v.color : "#46526A",
                     fontFamily: "'Nunito',sans-serif",
                     fontWeight: 800,
-                    fontSize: "12px",
+                    fontSize: "11px",
                     textAlign: "center",
-                    boxShadow: sel ? `0 0 18px ${pr.color}40` : "none",
+                    boxShadow: sel ? `0 0 18px ${v.color}40` : "none",
                   }}
                 >
                   <div style={{ fontSize: "22px", marginBottom: "3px" }}>
-                    {pr.emoji}
+                    {v.emoji}
                   </div>
-                  {pr.name}
+                  {v.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── 鳴き方にゃ ── */}
+        <div style={{ padding: "12px 14px 0" }}>
+          <div
+            style={{
+              color: "#66708A",
+              fontSize: "9px",
+              letterSpacing: "3px",
+              marginBottom: "8px",
+              fontFamily: "'Share Tech Mono',monospace",
+            }}
+          >
+            CRY STYLE / 鳴き方
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              gap: "7px",
+            }}
+          >
+            {CRY_STYLES.map((style, i) => {
+              const sel = styleIdx === i;
+              return (
+                <button
+                  key={style.id}
+                  onClick={() => {
+                    setStyleIdx(i);
+                    commitHash({ styleIdx: i });
+                  }}
+                  style={{
+                    background: sel ? col + "22" : "#F4F7FC",
+                    border: `1px solid ${sel ? col : "#D9E2F0"}`,
+                    borderRadius: "10px",
+                    padding: "9px 5px",
+                    cursor: "pointer",
+                    transition: "all .13s",
+                    color: sel ? col : "#46526A",
+                    fontFamily: "'Nunito',sans-serif",
+                    fontWeight: 800,
+                    fontSize: "11px",
+                    textAlign: "center",
+                    boxShadow: sel ? `0 0 18px ${col}40` : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontFamily: "'Share Tech Mono',monospace",
+                      fontSize: "18px",
+                      marginBottom: "3px",
+                    }}
+                  >
+                    {style.mark}
+                  </div>
+                  {style.name}
                 </button>
               );
             })}
@@ -1069,7 +1169,7 @@ export default function Necoder() {
               boxShadow: isPlay ? `0 0 40px ${col}88` : undefined,
             }}
           >
-            {isPlay ? `${preset.emoji}  ${preset.name}` : "🐾  にゃ～ん！"}
+            {isPlay ? `${cryStyle.mark}  ${voice.name} ${cryStyle.name}` : "🐾  にゃ～ん！"}
           </button>
         </div>
 
