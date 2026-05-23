@@ -683,6 +683,43 @@ export default function Necoder() {
     }
   }, []);
 
+  const clearParamDrafts = useCallback(() => {
+    setDraftNums((drafts) => {
+      const next = { ...drafts };
+      ["ps", "dm", "vib", "vm"].forEach((key) => delete next[key]);
+      return next;
+    });
+  }, []);
+
+  const setParamsAndCommit = useCallback(
+    (next) => {
+      clearParamDrafts();
+      setPs(next.ps);
+      setDm(next.dm);
+      setVib(next.vib);
+      setVm(next.vm);
+      commitHash(next);
+    },
+    [clearParamDrafts, commitHash],
+  );
+
+  const randomizeParams = useCallback(() => {
+    const stepValue = (min, max, step) => {
+      const count = Math.round((max - min) / step);
+      return Number((min + Math.floor(Math.random() * (count + 1)) * step).toFixed(2));
+    };
+    setParamsAndCommit({
+      ps: stepValue(-7, 7, 1),
+      dm: stepValue(0.4, 1.8, 0.1),
+      vib: stepValue(0, 2.5, 0.1),
+      vm: stepValue(0.45, 1, 0.05),
+    });
+  }, [setParamsAndCommit]);
+
+  const resetParams = useCallback(() => {
+    setParamsAndCommit({ ps: 0, dm: 1, vib: 1, vm: 0.8 });
+  }, [setParamsAndCommit]);
+
   const sliders = [
     {
       label: "PITCH",
@@ -1177,6 +1214,9 @@ export default function Necoder() {
         <div style={{ padding: "0 14px 14px" }}>
           <div
             style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
               color: "#66708A",
               fontSize: "9px",
               letterSpacing: "3px",
@@ -1184,7 +1224,44 @@ export default function Necoder() {
               fontFamily: "'Share Tech Mono',monospace",
             }}
           >
-            PARAMETERS / パラメータ
+            <span>PARAMETERS / パラメータ</span>
+            <span
+              style={{
+                display: "flex",
+                gap: "5px",
+                letterSpacing: 0,
+              }}
+            >
+              {[
+                { label: "🎲", title: "ランダム", onClick: randomizeParams },
+                { label: "↺", title: "リセット", onClick: resetParams },
+              ].map((button) => (
+                <button
+                  key={button.title}
+                  type="button"
+                  title={button.title}
+                  aria-label={button.title}
+                  onClick={button.onClick}
+                  style={{
+                    width: "24px",
+                    height: "22px",
+                    borderRadius: "7px",
+                    border: `1px solid ${col}55`,
+                    background: "#FFFFFFAA",
+                    color: col,
+                    cursor: "pointer",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: "12px",
+                    lineHeight: 1,
+                    padding: 0,
+                    transition: "background .12s, border-color .12s, transform .08s",
+                  }}
+                >
+                  {button.label}
+                </button>
+              ))}
+            </span>
           </div>
           <div
             style={{
