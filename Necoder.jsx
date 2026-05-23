@@ -152,6 +152,12 @@ const numFromHash = (params, key, fallback, min, max) => {
   return clamp(raw, min, max);
 };
 
+const parseNumberInput = (value, fallback, min, max) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return clamp(parsed, min, max);
+};
+
 const getHashState = () => {
   if (typeof window === "undefined") return {};
   const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -350,6 +356,7 @@ export default function Necoder() {
   const [activeKey, setAK] = useState(null);
   const [isPlay, setIP] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
+  const [draftNums, setDraftNums] = useState({});
 
   const audioRef = useRef(null);
   const canvasRef = useRef(null);
@@ -394,6 +401,46 @@ export default function Necoder() {
       }
     },
     [makeHash],
+  );
+
+  const setDraftNum = useCallback((keyName, value) => {
+    setDraftNums((drafts) => ({ ...drafts, [keyName]: value }));
+  }, []);
+
+  const clearDraftNum = useCallback((keyName) => {
+    setDraftNums((drafts) => {
+      if (!(keyName in drafts)) return drafts;
+      const next = { ...drafts };
+      delete next[keyName];
+      return next;
+    });
+  }, []);
+
+  const commitNumericValue = useCallback(
+    (keyName, rawValue, config) => {
+      const inputValue = parseNumberInput(
+        rawValue,
+        config.toInput(config.val),
+        config.inputMin,
+        config.inputMax,
+      );
+      const value = config.fromInput(inputValue);
+      config.set(value);
+      commitHash({ [keyName]: value });
+      clearDraftNum(keyName);
+    },
+    [clearDraftNum, commitHash],
+  );
+
+  const commitMorphInput = useCallback(
+    (rawValue) => {
+      const input = parseNumberInput(rawValue, Math.round(morph * 100), 0, 100);
+      const value = Number((input / 100).toFixed(2));
+      setMorph(value);
+      commitHash({ morph: value });
+      clearDraftNum("morph");
+    },
+    [clearDraftNum, commitHash, morph],
   );
 
   // hashを手で貼り替えたときも復元するにゃ
@@ -581,6 +628,16 @@ export default function Necoder() {
         .neko-shake { animation: nekoShake 0.12s ease-in-out 3; }
         input[type=range] { -webkit-appearance:none; appearance:none; height:3px; border-radius:2px; outline:none; cursor:pointer; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; cursor:pointer; }
+        .necoder-number {
+          background: transparent;
+          border-color: transparent;
+          transition: background .12s, border-color .12s;
+        }
+        .necoder-number:hover,
+        .necoder-number:focus {
+          background: #FFFFFF;
+          border-color: #CBD6E8;
+        }
       `;
       document.head.appendChild(st);
     }
@@ -597,6 +654,11 @@ export default function Necoder() {
       step: 1,
       set: setPs,
       fmt: (v) => (v > 0 ? "+" : "") + v,
+      toInput: (v) => v,
+      fromInput: (v) => Math.round(v),
+      inputMin: -12,
+      inputMax: 12,
+      inputStep: 1,
       unit: "st",
     },
     {
@@ -609,6 +671,11 @@ export default function Necoder() {
       step: 0.1,
       set: setDm,
       fmt: (v) => v.toFixed(1),
+      toInput: (v) => Number(v.toFixed(1)),
+      fromInput: (v) => Number(v.toFixed(1)),
+      inputMin: 0.3,
+      inputMax: 2.5,
+      inputStep: 0.1,
       unit: "x",
     },
     {
@@ -621,6 +688,11 @@ export default function Necoder() {
       step: 0.1,
       set: setVib,
       fmt: (v) => v.toFixed(1),
+      toInput: (v) => Number(v.toFixed(1)),
+      fromInput: (v) => Number(v.toFixed(1)),
+      inputMin: 0,
+      inputMax: 3,
+      inputStep: 0.1,
       unit: "x",
     },
     {
@@ -633,6 +705,11 @@ export default function Necoder() {
       step: 0.05,
       set: setVm,
       fmt: (v) => Math.round(v * 100),
+      toInput: (v) => Math.round(v * 100),
+      fromInput: (v) => Number((v / 100).toFixed(2)),
+      inputMin: 10,
+      inputMax: 100,
+      inputStep: 5,
       unit: "%",
     },
   ];
@@ -863,12 +940,42 @@ export default function Necoder() {
               <div
                 style={{
                   color: col,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
                   fontFamily: "'Share Tech Mono',monospace",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: 700,
                 }}
               >
-                {Math.round(morph * 100)}%
+                <input
+                  className="necoder-number"
+                  type="text"
+                  inputMode="decimal"
+                  value={draftNums.morph ?? String(Math.round(morph * 100))}
+                  onChange={(e) => setDraftNum("morph", e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      commitMorphInput(e.currentTarget.value);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  onBlur={(e) => commitMorphInput(e.currentTarget.value)}
+                  style={{
+                    width: "58px",
+                    background: "transparent",
+                    border: "1px solid transparent",
+                    borderRadius: "6px",
+                    color: col,
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    padding: "4px 5px",
+                    textAlign: "right",
+                    outline: "none",
+                  }}
+                />
+                %
               </div>
             </div>
             <input
@@ -877,7 +984,10 @@ export default function Necoder() {
               max={1}
               step={0.01}
               value={morph}
-              onChange={(e) => setMorph(Number(e.target.value))}
+              onChange={(e) => {
+                clearDraftNum("morph");
+                setMorph(Number(e.target.value));
+              }}
               onPointerUp={(e) =>
                 commitHash({ morph: Number(e.currentTarget.value) })
               }
@@ -911,6 +1021,7 @@ export default function Necoder() {
                   <button
                     key={m.label}
                     onClick={() => {
+                      clearDraftNum("morph");
                       setMorph(m.value);
                       commitHash({ morph: m.value });
                       setDT(`🐱  ネコーダー ${m.label}`);
@@ -983,9 +1094,9 @@ export default function Necoder() {
             }}
           >
             {sliders.map(
-              ({ label, jp, keyName, val, min, max, step, set, fmt, unit }) => (
+              (slider) => (
                 <div
-                  key={label}
+                  key={slider.label}
                   style={{
                     background: "#F6F8FC",
                     borderRadius: "9px",
@@ -1010,7 +1121,7 @@ export default function Necoder() {
                           fontFamily: "'Share Tech Mono',monospace",
                         }}
                       >
-                        {label}
+                        {slider.label}
                       </div>
                       <div
                         style={{
@@ -1019,42 +1130,89 @@ export default function Necoder() {
                           marginTop: "1px",
                         }}
                       >
-                        {jp}
+                        {slider.jp}
                       </div>
                     </div>
                     <div
                       style={{
                         color: col,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
                         fontFamily: "'Share Tech Mono',monospace",
-                        fontSize: "13px",
+                        fontSize: "12px",
                         fontWeight: 700,
                         transition: "color .2s",
                       }}
                     >
-                      {fmt(val)}
-                      {unit}
+                      <input
+                        className="necoder-number"
+                        type="text"
+                        inputMode="decimal"
+                        value={
+                          draftNums[slider.keyName] ??
+                          String(slider.toInput(slider.val))
+                        }
+                        onChange={(e) =>
+                          setDraftNum(slider.keyName, e.target.value)
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            commitNumericValue(
+                              slider.keyName,
+                              e.currentTarget.value,
+                              slider,
+                            );
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        onBlur={(e) =>
+                          commitNumericValue(
+                            slider.keyName,
+                            e.currentTarget.value,
+                            slider,
+                          )
+                        }
+                        style={{
+                          width: "58px",
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          borderRadius: "6px",
+                          color: col,
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          padding: "4px 5px",
+                          textAlign: "right",
+                          outline: "none",
+                        }}
+                      />
+                      {slider.unit}
                     </div>
                   </div>
                   <input
                     type="range"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={val}
-                    onChange={(e) => set(Number(e.target.value))}
+                    min={slider.min}
+                    max={slider.max}
+                    step={slider.step}
+                    value={slider.val}
+                    onChange={(e) => {
+                      clearDraftNum(slider.keyName);
+                      slider.set(Number(e.target.value));
+                    }}
                     onPointerUp={(e) =>
-                      commitHash({ [keyName]: Number(e.currentTarget.value) })
+                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
                     }
                     onKeyUp={(e) =>
-                      commitHash({ [keyName]: Number(e.currentTarget.value) })
+                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
                     }
                     onBlur={(e) =>
-                      commitHash({ [keyName]: Number(e.currentTarget.value) })
+                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
                     }
                     style={{
                       width: "100%",
                       accentColor: col,
-                      background: `linear-gradient(to right, ${col} 0%, ${col} ${((val - min) / (max - min)) * 100}%, #D6DFEF ${((val - min) / (max - min)) * 100}%, #D6DFEF 100%)`,
+                      background: `linear-gradient(to right, ${col} 0%, ${col} ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF 100%)`,
                     }}
                   />
                 </div>
