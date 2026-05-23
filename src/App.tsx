@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { composeParams, morphLabel, parseNumberInput, playMeow } from "./audio";
+import { KeyboardControls } from "./components/KeyboardControls";
+import { OptionGrid } from "./components/OptionGrid";
+import { SectionHeader } from "./components/SectionHeader";
 import { CRY_STYLES, KEYS, VOICES } from "./data";
 import { makeHash as buildHash, parseHashState } from "./hash";
 import {
@@ -9,9 +12,6 @@ import {
   parseMidiMessage,
   type MidiStatus,
 } from "./midi";
-import { OptionGrid } from "./components/OptionGrid";
-import { SectionHeader } from "./components/SectionHeader";
-import { KeyboardControls } from "./components/KeyboardControls";
 
 type AudioWindow = Window &
   typeof globalThis & {
@@ -544,6 +544,7 @@ export default function Necoder() {
         minHeight: "100vh",
         background: "linear-gradient(180deg,#F7FAFF,#E8EEF8)",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         padding: "12px",
@@ -1090,6 +1091,33 @@ export default function Necoder() {
           onReleaseKey={() => setAK(null)}
         />
       </div>
+      <footer
+        style={{
+          width: "100%",
+          maxWidth: "460px",
+          padding: "10px 14px 0",
+          textAlign: "center",
+          color: "#68748D",
+          fontSize: "10px",
+          lineHeight: 1.6,
+          fontFamily: "'Nunito',sans-serif",
+        }}
+      >
+        <a
+          href="https://github.com/mfakane/necoder-synth"
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            color: col,
+            fontWeight: 900,
+            textDecoration: "none",
+          }}
+        >
+          GitHub
+        </a>
+        <span style={{ margin: "0 7px", color: "#A2ACC0" }}>/</span>
+        <span>本ページで合成した音声は自由に利用できます。</span>
+      </footer>
     </div>
   );
 }
