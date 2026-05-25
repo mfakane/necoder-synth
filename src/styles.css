@@ -17,3 +17,25 @@ button,
 input {
   font: inherit;
 }
+
+.necoder-container {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  max-width: 800px;
+}
+
+.necoder-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media screen and (orientation: portrait) {
+  .necoder-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    max-width: 460px;
+  }
+}

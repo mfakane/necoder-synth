@@ -19,8 +19,8 @@ import {
   midiNoteToKey,
   midiNoteToSemitone,
   midiVelocityScale,
-  parseWebMidiLinkMessage,
   parseMidiMessage,
+  parseWebMidiLinkMessage,
   type MidiNoteMessage,
   type MidiStatus,
 } from "./midi";
@@ -754,23 +754,21 @@ export default function Necoder() {
     >
       {/* ───── シンセ本体にゃ ───── */}
       <div
+        className="necoder-container"
         style={{
           width: "100%",
-          maxWidth: "460px",
           background: "#FFFFFF",
           borderRadius: "22px",
           border: "1px solid #CFD8EA",
           boxShadow:
             "0 28px 80px rgba(54,68,105,.22), inset 0 1px 0 rgba(255,255,255,.9)",
           overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          gap: "12px",
         }}
       >
         {/* ── ヘッダーにゃ ── */}
         <div
           style={{
+            gridColumn: "1 / -1",
             background: "linear-gradient(135deg,#FFFFFF,#EEF4FF)",
             padding: "14px 18px",
             borderBottom: "1px solid #D8E1F0",
@@ -817,527 +815,531 @@ export default function Necoder() {
           </div>
         </div>
 
-        {/* ── オシロスコープにゃ ── */}
-        <div
-          style={{
-            margin: "2px 14px 0 14px",
-            background: "#10162A",
-            borderRadius: "10px",
-            border: "1px solid #2C3658",
-            padding: "10px 12px 8px",
-          }}
-        >
+        <div className="necoder-column">
+          {/* ── オシロスコープにゃ ── */}
           <div
             style={{
-              fontFamily: "'Share Tech Mono',monospace",
-              color: isPlay ? col : "#6f778a",
-              fontSize: "12px",
-              marginBottom: "6px",
-              transition: "color .15s",
-              letterSpacing: "1px",
-            }}
-          >
-            {dispTxt}
-          </div>
-          <canvas
-            ref={canvasRef}
-            width={420}
-            height={64}
-            style={{
-              width: "100%",
-              height: "64px",
-              borderRadius: "6px",
-              display: "block",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "4px",
-            }}
-          >
-            {["1", "2", "3", "4", "5", "6", "7", "8"].map((n) => (
-              <div
-                key={n}
-                style={{
-                  color: "#6f778a",
-                  fontSize: "8px",
-                  fontFamily: "'Share Tech Mono',monospace",
-                }}
-              >
-                {n}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── 音色にゃ ── */}
-        <div style={{ padding: "0 14px" }}>
-          <SectionHeader>VOICE / 音色</SectionHeader>
-          <OptionGrid
-            items={VOICES}
-            selectedIndex={voiceIdx}
-            columns={4}
-            accentColor={col}
-            onSelect={(index) => {
-              setVoiceIdx(index);
-              commitHash({ voiceIdx: index });
-            }}
-            renderIcon={(v) => (
-              <div style={{ fontSize: "22px", marginBottom: "3px" }}>
-                {v.emoji}
-              </div>
-            )}
-          />
-        </div>
-
-        {/* ── 鳴き方にゃ ── */}
-        <div style={{ padding: "0 14px" }}>
-          <SectionHeader>CRY STYLE / 鳴き方</SectionHeader>
-          <OptionGrid
-            items={CRY_STYLES}
-            selectedIndex={styleIdx}
-            columns={4}
-            accentColor={col}
-            onSelect={(index) => {
-              setStyleIdx(index);
-              commitHash({ styleIdx: index });
-            }}
-            renderIcon={(style) => (
-              <div
-                style={{
-                  fontFamily: "'Share Tech Mono',monospace",
-                  fontSize: "18px",
-                  marginBottom: "3px",
-                }}
-              >
-                {style.mark}
-              </div>
-            )}
-          />
-        </div>
-
-        {/* ── にゃーん度にゃ ── */}
-        <div style={{ padding: "0 14px" }}>
-          <div
-            style={{
-              color: "#66708A",
-              fontSize: "9px",
-              letterSpacing: "3px",
-              marginBottom: "8px",
-              fontFamily: "'Share Tech Mono',monospace",
-            }}
-          >
-            MEOW MORPH / モフ度
-          </div>
-          <div
-            style={{
-              background: "#EEF3FA",
-              border: "1px solid #D6DFEF",
+              margin: "2px 14px 0 14px",
+              background: "#10162A",
               borderRadius: "10px",
-              padding: "11px 12px 9px",
+              border: "1px solid #2C3658",
+              padding: "10px 12px 8px",
             }}
           >
+            <div
+              style={{
+                fontFamily: "'Share Tech Mono',monospace",
+                color: isPlay ? col : "#6f778a",
+                fontSize: "12px",
+                marginBottom: "6px",
+                transition: "color .15s",
+                letterSpacing: "1px",
+              }}
+            >
+              {dispTxt}
+            </div>
+            <canvas
+              ref={canvasRef}
+              width={420}
+              height={64}
+              style={{
+                width: "100%",
+                height: "64px",
+                borderRadius: "6px",
+                display: "block",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "4px",
+              }}
+            >
+              {["1", "2", "3", "4", "5", "6", "7", "8"].map((n) => (
+                <div
+                  key={n}
+                  style={{
+                    color: "#6f778a",
+                    fontSize: "8px",
+                    fontFamily: "'Share Tech Mono',monospace",
+                  }}
+                >
+                  {n}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ── 音色にゃ ── */}
+          <div style={{ padding: "0 14px" }}>
+            <SectionHeader>VOICE / 音色</SectionHeader>
+            <OptionGrid
+              items={VOICES}
+              selectedIndex={voiceIdx}
+              columns={4}
+              accentColor={col}
+              onSelect={(index) => {
+                setVoiceIdx(index);
+                commitHash({ voiceIdx: index });
+              }}
+              renderIcon={(v) => (
+                <div style={{ fontSize: "22px", marginBottom: "3px" }}>
+                  {v.emoji}
+                </div>
+              )}
+            />
+          </div>
+
+          {/* ── 鳴き方にゃ ── */}
+          <div style={{ padding: "0 14px" }}>
+            <SectionHeader>CRY STYLE / 鳴き方</SectionHeader>
+            <OptionGrid
+              items={CRY_STYLES}
+              selectedIndex={styleIdx}
+              columns={4}
+              accentColor={col}
+              onSelect={(index) => {
+                setStyleIdx(index);
+                commitHash({ styleIdx: index });
+              }}
+              renderIcon={(style) => (
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: "18px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  {style.mark}
+                </div>
+              )}
+            />
+          </div>
+
+          {/* ── にゃーん度にゃ ── */}
+          <div style={{ padding: "0 14px" }}>
+            <div
+              style={{
+                color: "#66708A",
+                fontSize: "9px",
+                letterSpacing: "3px",
+                marginBottom: "8px",
+                fontFamily: "'Share Tech Mono',monospace",
+              }}
+            >
+              MEOW MORPH / モフ度
+            </div>
+            <div
+              style={{
+                background: "#EEF3FA",
+                border: "1px solid #D6DFEF",
+                borderRadius: "10px",
+                padding: "11px 12px 9px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#46526A",
+                    fontSize: "12px",
+                    fontWeight: 900,
+                  }}
+                >
+                  {morphLabel(morph)}
+                </div>
+                <div
+                  style={{
+                    color: col,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <input
+                    className="necoder-number"
+                    type="text"
+                    inputMode="decimal"
+                    value={draftNums.morph ?? String(Math.round(morph * 100))}
+                    onChange={(e) => setDraftNum("morph", e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        commitMorphInput(e.currentTarget.value);
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    onBlur={(e) => commitMorphInput(e.currentTarget.value)}
+                    style={{
+                      width: "58px",
+                      background: "transparent",
+                      border: "1px solid transparent",
+                      borderRadius: "6px",
+                      color: col,
+                      fontFamily: "'Share Tech Mono',monospace",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      padding: "4px 5px",
+                      textAlign: "right",
+                      outline: "none",
+                    }}
+                  />
+                  %
+                </div>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={morph}
+                onChange={(e) => {
+                  clearDraftNum("morph");
+                  setMorph(Number(e.target.value));
+                }}
+                onPointerUp={(e) =>
+                  commitHash({ morph: Number(e.currentTarget.value) })
+                }
+                onKeyUp={(e) =>
+                  commitHash({ morph: Number(e.currentTarget.value) })
+                }
+                onBlur={(e) =>
+                  commitHash({ morph: Number(e.currentTarget.value) })
+                }
+                style={{
+                  width: "100%",
+                  accentColor: col,
+                  background: `linear-gradient(to right, ${col} 0%, ${col} ${morph * 100}%, #D6DFEF ${morph * 100}%, #D6DFEF 100%)`,
+                }}
+              />
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3,1fr)",
+                  gap: "6px",
+                  marginTop: "8px",
+                }}
+              >
+                {[
+                  { label: "ピコ猫", value: 0 },
+                  { label: "にゃーん", value: 0.5 },
+                  { label: "超にゃーん", value: 1 },
+                ].map((m) => {
+                  const sel = Math.abs(morph - m.value) < 0.005;
+                  return (
+                    <button
+                      key={m.label}
+                      onClick={() => {
+                        clearDraftNum("morph");
+                        setMorph(m.value);
+                        commitHash({ morph: m.value });
+                        setDT(`🐱  ネコーダー ${m.label}`);
+                      }}
+                      style={{
+                        background: sel ? col : "#FFFFFFAA",
+                        border: `1px solid ${sel ? col : "#D6DFEF"}`,
+                        borderRadius: "7px",
+                        color: sel ? "#FFFFFF" : "#46526A",
+                        cursor: "pointer",
+                        padding: "7px 4px",
+                        fontFamily: "'Nunito',sans-serif",
+                        fontSize: "11px",
+                        fontWeight: 900,
+                        transition: "background .12s, color .12s",
+                      }}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* ── デカいにゃ～んボタン ── */}
+          <div style={{ padding: "12px 14px" }}>
+            <button
+              className={isPlay ? "neko-shake" : "neko-pulse"}
+              onClick={() => trigger(0)}
+              style={
+                {
+                "--nc": col,
+                width: "100%",
+                padding: "16px",
+                borderRadius: "14px",
+                cursor: "pointer",
+                background: isPlay ? col : col + "18",
+                border: `2px solid ${col}`,
+                color: isPlay ? "#FFFFFF" : "#1D2638",
+                fontFamily: "'Nunito',sans-serif",
+                fontWeight: 900,
+                fontSize: "20px",
+                letterSpacing: "4px",
+                transition: "background .08s, color .08s",
+                boxShadow: isPlay ? `0 0 40px ${col}88` : undefined,
+                } as React.CSSProperties
+              }
+            >
+              {isPlay ? `${cryStyle.mark}  ${voice.name} ${cryStyle.name}` : "🐾  にゃ～ん！"}
+            </button>
+          </div>
+        </div>
+
+        <div className="necoder-column">
+          {/* ── 抑揚にゃ ── */}
+          <IntonationControls
+            color={col}
+            sliders={intonationSliders}
+            presetSelect={
+              <select
+                value=""
+                aria-label="抑揚の設定例"
+                onChange={(event) => {
+                  const preset = INTONATION_PRESETS.find(
+                    (item) => item.label === event.currentTarget.value,
+                  );
+                  if (preset) applyIntonationPreset(preset);
+                }}
+                style={{
+                  maxWidth: "138px",
+                  height: "24px",
+                  borderRadius: "7px",
+                  border: `1px solid ${col}55`,
+                  background: "#FFFFFFAA",
+                  color: col,
+                  fontFamily: "'Nunito',sans-serif",
+                  fontSize: "10px",
+                  fontWeight: 900,
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">設定例</option>
+                {INTONATION_PRESETS.map((preset) => (
+                  <option key={preset.label} value={preset.label}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
+            }
+            draftNums={draftNums}
+            setDraftNum={setDraftNum}
+            clearDraftNum={clearDraftNum}
+            commitNumericValue={commitIntonationValue}
+            commitHash={commitHash}
+          />
+
+          {/* ── パラメータにゃ ── */}
+          <div style={{ padding: "0 14px" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                color: "#66708A",
+                fontSize: "9px",
+                letterSpacing: "3px",
                 marginBottom: "8px",
+                fontFamily: "'Share Tech Mono',monospace",
               }}
             >
-              <div
+              <span>PARAMETERS / パラメータ</span>
+              <span
                 style={{
-                  color: "#46526A",
-                  fontSize: "12px",
-                  fontWeight: 900,
-                }}
-              >
-                {morphLabel(morph)}
-              </div>
-              <div
-                style={{
-                  color: col,
                   display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  fontFamily: "'Share Tech Mono',monospace",
-                  fontSize: "12px",
-                  fontWeight: 700,
+                  gap: "5px",
+                  letterSpacing: 0,
                 }}
               >
-                <input
-                  className="necoder-number"
-                  type="text"
-                  inputMode="decimal"
-                  value={draftNums.morph ?? String(Math.round(morph * 100))}
-                  onChange={(e) => setDraftNum("morph", e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      commitMorphInput(e.currentTarget.value);
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  onBlur={(e) => commitMorphInput(e.currentTarget.value)}
-                  style={{
-                    width: "58px",
-                    background: "transparent",
-                    border: "1px solid transparent",
-                    borderRadius: "6px",
-                    color: col,
-                    fontFamily: "'Share Tech Mono',monospace",
-                    fontSize: "12px",
-                    fontWeight: 700,
-                    padding: "4px 5px",
-                    textAlign: "right",
-                    outline: "none",
-                  }}
-                />
-                %
-              </div>
+                {[
+                  { label: "🎲", title: "ランダム", onClick: randomizeParams },
+                  { label: "↺", title: "リセット", onClick: resetParams },
+                ].map((button) => (
+                  <button
+                    key={button.title}
+                    type="button"
+                    title={button.title}
+                    aria-label={button.title}
+                    onClick={button.onClick}
+                    style={{
+                      width: "24px",
+                      height: "22px",
+                      borderRadius: "7px",
+                      border: `1px solid ${col}55`,
+                      background: "#FFFFFFAA",
+                      color: col,
+                      cursor: "pointer",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: "12px",
+                      lineHeight: 1,
+                      padding: 0,
+                      transition: "background .12s, border-color .12s, transform .08s",
+                    }}
+                  >
+                    {button.label}
+                  </button>
+                ))}
+              </span>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={morph}
-              onChange={(e) => {
-                clearDraftNum("morph");
-                setMorph(Number(e.target.value));
-              }}
-              onPointerUp={(e) =>
-                commitHash({ morph: Number(e.currentTarget.value) })
-              }
-              onKeyUp={(e) =>
-                commitHash({ morph: Number(e.currentTarget.value) })
-              }
-              onBlur={(e) =>
-                commitHash({ morph: Number(e.currentTarget.value) })
-              }
-              style={{
-                width: "100%",
-                accentColor: col,
-                background: `linear-gradient(to right, ${col} 0%, ${col} ${morph * 100}%, #D6DFEF ${morph * 100}%, #D6DFEF 100%)`,
-              }}
-            />
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3,1fr)",
-                gap: "6px",
-                marginTop: "8px",
+                gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
+                gap: "8px",
               }}
             >
-              {[
-                { label: "ピコ猫", value: 0 },
-                { label: "にゃーん", value: 0.5 },
-                { label: "超にゃーん", value: 1 },
-              ].map((m) => {
-                const sel = Math.abs(morph - m.value) < 0.005;
-                return (
-                  <button
-                    key={m.label}
-                    onClick={() => {
-                      clearDraftNum("morph");
-                      setMorph(m.value);
-                      commitHash({ morph: m.value });
-                      setDT(`🐱  ネコーダー ${m.label}`);
-                    }}
-                    style={{
-                      background: sel ? col : "#FFFFFFAA",
-                      border: `1px solid ${sel ? col : "#D6DFEF"}`,
-                      borderRadius: "7px",
-                      color: sel ? "#FFFFFF" : "#46526A",
-                      cursor: "pointer",
-                      padding: "7px 4px",
-                      fontFamily: "'Nunito',sans-serif",
-                      fontSize: "11px",
-                      fontWeight: 900,
-                      transition: "background .12s, color .12s",
-                    }}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ── デカいにゃ～んボタン ── */}
-        <div style={{ padding: "12px 14px" }}>
-          <button
-            className={isPlay ? "neko-shake" : "neko-pulse"}
-            onClick={() => trigger(0)}
-            style={
-              {
-              "--nc": col,
-              width: "100%",
-              padding: "16px",
-              borderRadius: "14px",
-              cursor: "pointer",
-              background: isPlay ? col : col + "18",
-              border: `2px solid ${col}`,
-              color: isPlay ? "#FFFFFF" : "#1D2638",
-              fontFamily: "'Nunito',sans-serif",
-              fontWeight: 900,
-              fontSize: "20px",
-              letterSpacing: "4px",
-              transition: "background .08s, color .08s",
-              boxShadow: isPlay ? `0 0 40px ${col}88` : undefined,
-              } as React.CSSProperties
-            }
-          >
-            {isPlay ? `${cryStyle.mark}  ${voice.name} ${cryStyle.name}` : "🐾  にゃ～ん！"}
-          </button>
-        </div>
-
-        {/* ── 抑揚にゃ ── */}
-        <IntonationControls
-          color={col}
-          sliders={intonationSliders}
-          presetSelect={
-            <select
-              value=""
-              aria-label="抑揚の設定例"
-              onChange={(event) => {
-                const preset = INTONATION_PRESETS.find(
-                  (item) => item.label === event.currentTarget.value,
-                );
-                if (preset) applyIntonationPreset(preset);
-              }}
-              style={{
-                maxWidth: "138px",
-                height: "24px",
-                borderRadius: "7px",
-                border: `1px solid ${col}55`,
-                background: "#FFFFFFAA",
-                color: col,
-                fontFamily: "'Nunito',sans-serif",
-                fontSize: "10px",
-                fontWeight: 900,
-                outline: "none",
-                cursor: "pointer",
-              }}
-            >
-              <option value="">設定例</option>
-              {INTONATION_PRESETS.map((preset) => (
-                <option key={preset.label} value={preset.label}>
-                  {preset.label}
-                </option>
-              ))}
-            </select>
-          }
-          draftNums={draftNums}
-          setDraftNum={setDraftNum}
-          clearDraftNum={clearDraftNum}
-          commitNumericValue={commitIntonationValue}
-          commitHash={commitHash}
-        />
-
-        {/* ── パラメータにゃ ── */}
-        <div style={{ padding: "0 14px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              color: "#66708A",
-              fontSize: "9px",
-              letterSpacing: "3px",
-              marginBottom: "8px",
-              fontFamily: "'Share Tech Mono',monospace",
-            }}
-          >
-            <span>PARAMETERS / パラメータ</span>
-            <span
-              style={{
-                display: "flex",
-                gap: "5px",
-                letterSpacing: 0,
-              }}
-            >
-              {[
-                { label: "🎲", title: "ランダム", onClick: randomizeParams },
-                { label: "↺", title: "リセット", onClick: resetParams },
-              ].map((button) => (
-                <button
-                  key={button.title}
-                  type="button"
-                  title={button.title}
-                  aria-label={button.title}
-                  onClick={button.onClick}
-                  style={{
-                    width: "24px",
-                    height: "22px",
-                    borderRadius: "7px",
-                    border: `1px solid ${col}55`,
-                    background: "#FFFFFFAA",
-                    color: col,
-                    cursor: "pointer",
-                    display: "grid",
-                    placeItems: "center",
-                    fontSize: "12px",
-                    lineHeight: 1,
-                    padding: 0,
-                    transition: "background .12s, border-color .12s, transform .08s",
-                  }}
-                >
-                  {button.label}
-                </button>
-              ))}
-            </span>
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
-              gap: "8px",
-            }}
-          >
-            {sliders.map(
-              (slider) => (
-                <div
-                  key={slider.label}
-                  style={{
-                    background: "#F6F8FC",
-                    borderRadius: "9px",
-                    border: "1px solid #DCE5F2",
-                    padding: "9px 11px",
-                  }}
-                >
+              {sliders.map(
+                (slider) => (
                   <div
+                    key={slider.label}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      marginBottom: "6px",
+                      background: "#F6F8FC",
+                      borderRadius: "9px",
+                      border: "1px solid #DCE5F2",
+                      padding: "9px 11px",
                     }}
                   >
-                    <div>
-                      <div
-                        style={{
-                          color: "#65718C",
-                          fontSize: "8px",
-                          letterSpacing: "2px",
-                          fontFamily: "'Share Tech Mono',monospace",
-                        }}
-                      >
-                        {slider.label}
-                      </div>
-                      <div
-                        style={{
-                          color: "#4C5870",
-                          fontSize: "9px",
-                          marginTop: "1px",
-                        }}
-                      >
-                        {slider.jp}
-                      </div>
-                    </div>
                     <div
                       style={{
-                        color: col,
                         display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        fontFamily: "'Share Tech Mono',monospace",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        transition: "color .2s",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        marginBottom: "6px",
                       }}
                     >
-                      <input
-                        className="necoder-number"
-                        type="text"
-                        inputMode="decimal"
-                        value={
-                          draftNums[slider.keyName] ??
-                          String(slider.toInput(slider.val))
-                        }
-                        onChange={(e) =>
-                          setDraftNum(slider.keyName, e.target.value)
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
+                      <div>
+                        <div
+                          style={{
+                            color: "#65718C",
+                            fontSize: "8px",
+                            letterSpacing: "2px",
+                            fontFamily: "'Share Tech Mono',monospace",
+                          }}
+                        >
+                          {slider.label}
+                        </div>
+                        <div
+                          style={{
+                            color: "#4C5870",
+                            fontSize: "9px",
+                            marginTop: "1px",
+                          }}
+                        >
+                          {slider.jp}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          color: col,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          transition: "color .2s",
+                        }}
+                      >
+                        <input
+                          className="necoder-number"
+                          type="text"
+                          inputMode="decimal"
+                          value={
+                            draftNums[slider.keyName] ??
+                            String(slider.toInput(slider.val))
+                          }
+                          onChange={(e) =>
+                            setDraftNum(slider.keyName, e.target.value)
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              commitNumericValue(
+                                slider.keyName,
+                                e.currentTarget.value,
+                                slider,
+                              );
+                              e.currentTarget.blur();
+                            }
+                          }}
+                          onBlur={(e) =>
                             commitNumericValue(
                               slider.keyName,
                               e.currentTarget.value,
                               slider,
-                            );
-                            e.currentTarget.blur();
+                            )
                           }
-                        }}
-                        onBlur={(e) =>
-                          commitNumericValue(
-                            slider.keyName,
-                            e.currentTarget.value,
-                            slider,
-                          )
-                        }
-                        style={{
-                          width: "58px",
-                          background: "transparent",
-                          border: "1px solid transparent",
-                          borderRadius: "6px",
-                          color: col,
-                          fontFamily: "'Share Tech Mono',monospace",
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          padding: "4px 5px",
-                          textAlign: "right",
-                          outline: "none",
-                        }}
-                      />
-                      {slider.unit}
+                          style={{
+                            width: "58px",
+                            background: "transparent",
+                            border: "1px solid transparent",
+                            borderRadius: "6px",
+                            color: col,
+                            fontFamily: "'Share Tech Mono',monospace",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            padding: "4px 5px",
+                            textAlign: "right",
+                            outline: "none",
+                          }}
+                        />
+                        {slider.unit}
+                      </div>
                     </div>
+                    <input
+                      type="range"
+                      min={slider.min}
+                      max={slider.max}
+                      step={slider.step}
+                      value={slider.val}
+                      onChange={(e) => {
+                        clearDraftNum(slider.keyName);
+                        slider.set(Number(e.target.value));
+                      }}
+                      onPointerUp={(e) =>
+                        commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
+                      }
+                      onKeyUp={(e) =>
+                        commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
+                      }
+                      onBlur={(e) =>
+                        commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
+                      }
+                      style={{
+                        width: "100%",
+                        accentColor: col,
+                        background: `linear-gradient(to right, ${col} 0%, ${col} ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF 100%)`,
+                      }}
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min={slider.min}
-                    max={slider.max}
-                    step={slider.step}
-                    value={slider.val}
-                    onChange={(e) => {
-                      clearDraftNum(slider.keyName);
-                      slider.set(Number(e.target.value));
-                    }}
-                    onPointerUp={(e) =>
-                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
-                    }
-                    onKeyUp={(e) =>
-                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
-                    }
-                    onBlur={(e) =>
-                      commitHash({ [slider.keyName]: Number(e.currentTarget.value) })
-                    }
-                    style={{
-                      width: "100%",
-                      accentColor: col,
-                      background: `linear-gradient(to right, ${col} 0%, ${col} ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF ${((slider.val - slider.min) / (slider.max - slider.min)) * 100}%, #D6DFEF 100%)`,
-                    }}
-                  />
-                </div>
-              ),
-            )}
+                ),
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* ── 鍵盤にゃ🎹 ── */}
-        <KeyboardControls
-          activeKey={activeKey}
-          color={col}
-          midiStatus={midiStatus}
-          webMidiLinkReady={webMidiLinkReady}
-          onToggleMidi={toggleMidi}
-          onPressKey={(key, semitone) => {
-            setAK(key);
-            trigger(semitone);
-          }}
-          onReleaseKey={() => setAK(null)}
-        />
+          {/* ── 鍵盤にゃ🎹 ── */}
+          <KeyboardControls
+            activeKey={activeKey}
+            color={col}
+            midiStatus={midiStatus}
+            webMidiLinkReady={webMidiLinkReady}
+            onToggleMidi={toggleMidi}
+            onPressKey={(key, semitone) => {
+              setAK(key);
+              trigger(semitone);
+            }}
+            onReleaseKey={() => setAK(null)}
+          />
+        </div>
       </div>
       <footer
         style={{
