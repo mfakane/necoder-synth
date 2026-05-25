@@ -8,12 +8,20 @@ import { KeyboardControls } from "./components/KeyboardControls";
 import { OptionGrid } from "./components/OptionGrid";
 import { SectionHeader } from "./components/SectionHeader";
 import { CRY_STYLES, KEYS, VOICES } from "./data";
-import { makeHash as buildHash, parseHashState } from "./hash";
+import {
+  makeHash as buildHash,
+  makeHashQuery,
+  parseHashPatch,
+  parseHashState,
+  type HashState,
+} from "./hash";
 import {
   midiNoteToKey,
   midiNoteToSemitone,
   midiVelocityScale,
+  parseWebMidiLinkMessage,
   parseMidiMessage,
+  type MidiNoteMessage,
   type MidiStatus,
 } from "./midi";
 
@@ -63,6 +71,7 @@ export default function Necoder() {
       ? "off"
       : "unsupported",
   );
+  const [webMidiLinkReady, setWebMidiLinkReady] = useState(false);
   const [isPlay, setIP] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
   const [draftNums, setDraftNums] = useState<DraftNums>({});
@@ -166,10 +175,8 @@ export default function Necoder() {
     [clearDraftNum, commitHash],
   );
 
-  // hashを手で貼り替えたときも復元するにゃ
-  useEffect(() => {
-    const applyHash = () => {
-      const next = parseHashState();
+  const applyHashState = useCallback(
+    (next: HashState) => {
       if (next.voiceIdx !== undefined) setVoiceIdx(next.voiceIdx);
       if (next.styleIdx !== undefined) setStyleIdx(next.styleIdx);
       if (next.morph !== undefined) setMorph(next.morph);
@@ -180,10 +187,19 @@ export default function Necoder() {
       if (next.dm !== undefined) setDm(next.dm);
       if (next.vib !== undefined) setVib(next.vib);
       if (next.vm !== undefined) setVm(next.vm);
+      setDraftNums({});
+    },
+    [],
+  );
+
+  // hashを手で貼り替えたときも復元するにゃ
+  useEffect(() => {
+    const applyHash = () => {
+      applyHashState(parseHashState());
     };
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
-  }, []);
+  }, [applyHashState]);
 
   // 音色変更でカラー更新にゃ
   useEffect(() => {
@@ -256,19 +272,38 @@ export default function Necoder() {
     triggerRef.current = trigger;
   }, [trigger]);
 
+  const stopAudio = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    setIP(false);
+    setDT(`🐱  ネコーダー ${morphLabel(morph)}`);
+    if (audioRef.current) {
+      audioRef.current.ctx.close();
+      audioRef.current = null;
+    }
+  }, [morph]);
+
+  const clearActiveMidiState = useCallback((resetKey = true) => {
+    activeMidiNotesRef.current.clear();
+    if (resetKey) setAK(null);
+  }, []);
+
   const clearMidiInputs = useCallback((resetKey = true) => {
     midiInputsRef.current.forEach((input) => {
       input.onmidimessage = null;
     });
     midiInputsRef.current = [];
-    activeMidiNotesRef.current.clear();
-    if (resetKey) setAK(null);
-  }, []);
+    clearActiveMidiState(resetKey);
+  }, [clearActiveMidiState]);
 
-  const handleMidiMessage = useCallback(
-    (event) => {
-      const message = parseMidiMessage(event.data || []);
+  const handleMidiNoteMessage = useCallback(
+    (message: MidiNoteMessage) => {
       if (message.type === "ignore") return;
+      if (message.type === "allsoundoff") {
+        clearActiveMidiState();
+        stopAudio();
+        return;
+      }
 
       const { note } = message;
       const key = midiNoteToKey(note);
@@ -290,7 +325,14 @@ export default function Necoder() {
         setAK(latestKey);
       }
     },
-    [],
+    [clearActiveMidiState, stopAudio],
+  );
+
+  const handleMidiMessage = useCallback(
+    (event) => {
+      handleMidiNoteMessage(parseMidiMessage(event.data || []));
+    },
+    [handleMidiNoteMessage],
   );
 
   const bindMidiInputs = useCallback(
@@ -338,6 +380,71 @@ export default function Necoder() {
       clearMidiInputs(false);
     };
   }, [clearMidiInputs]);
+
+  useEffect(() => {
+    const postLinkReady = (target: Window | null) => {
+      if (target && target !== window) {
+        target.postMessage("link,ready", "*");
+        setWebMidiLinkReady(true);
+      }
+    };
+
+    postLinkReady(window.opener);
+    if (window.parent !== window) postLinkReady(window.parent);
+  }, []);
+
+  useEffect(() => {
+    const handleWebMidiLinkMessage = (event: MessageEvent) => {
+      const webMidiLinkMessage = parseWebMidiLinkMessage(event.data);
+      if (webMidiLinkMessage.type === "ignore") return;
+      setWebMidiLinkReady(true);
+
+      if (webMidiLinkMessage.type === "midi") {
+        handleMidiNoteMessage(webMidiLinkMessage.message);
+        return;
+      }
+
+      if (webMidiLinkMessage.command === "reqpatch" && event.source) {
+        const patch = makeHashQuery({
+          voiceIdx,
+          styleIdx,
+          morph,
+          curveStart,
+          curvePeak,
+          curveEnd,
+          ps,
+          dm,
+          vib,
+          vm,
+        });
+        (event.source as Window).postMessage(`link,patch,${patch}`, "*");
+        return;
+      }
+
+      if (webMidiLinkMessage.command === "setpatch" && webMidiLinkMessage.data) {
+        const patchState = parseHashPatch(webMidiLinkMessage.data);
+        applyHashState(patchState);
+        commitHash(patchState);
+      }
+    };
+
+    window.addEventListener("message", handleWebMidiLinkMessage);
+    return () => window.removeEventListener("message", handleWebMidiLinkMessage);
+  }, [
+    applyHashState,
+    commitHash,
+    curveEnd,
+    curvePeak,
+    curveStart,
+    dm,
+    handleMidiNoteMessage,
+    morph,
+    ps,
+    styleIdx,
+    vib,
+    vm,
+    voiceIdx,
+  ]);
 
   // オシロスコープ描画にゃ🎨
   useEffect(() => {
@@ -1223,6 +1330,7 @@ export default function Necoder() {
           activeKey={activeKey}
           color={col}
           midiStatus={midiStatus}
+          webMidiLinkReady={webMidiLinkReady}
           onToggleMidi={toggleMidi}
           onPressKey={(key, semitone) => {
             setAK(key);

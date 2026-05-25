@@ -12,6 +12,7 @@
 - パラメータのランダム化とリセット
 - URL hash による設定共有
 - Web MIDI キーボード入力
+- WebMidiLink Level 1 受信
 - ビルド後の `dist/index.html` はローカルで開くだけでも動作
 
 ## Usage
@@ -20,6 +21,10 @@
 
 PC キーボードの `A S D F G H J K` でも演奏できます。  
 Web MIDI 対応ブラウザでは、`MIDI OFF` ボタンから MIDI キーボード入力を有効化できます。
+
+WebMidiLink 対応ホストから iframe や popup のシンセとして読み込むと、`midi,90,3c,64`
+のような WebMidiLink メッセージで演奏できます。起動時の `link,ready`、
+`link,reqpatch` / `link,setpatch,<query>` による現在設定の送受信にも対応しています。
 
 ## Development
 

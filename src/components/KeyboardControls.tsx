@@ -6,6 +6,7 @@ type KeyboardControlsProps = {
   activeKey: string | null;
   color: string;
   midiStatus: MidiStatus;
+  webMidiLinkReady: boolean;
   onToggleMidi: () => void;
   onPressKey: (key: string, semitone: number) => void;
   onReleaseKey: () => void;
@@ -15,61 +16,69 @@ export function KeyboardControls({
   activeKey,
   color,
   midiStatus,
+  webMidiLinkReady,
   onToggleMidi,
   onPressKey,
   onReleaseKey,
 }: KeyboardControlsProps) {
+  const isReady = midiStatus === "on" || webMidiLinkReady;
+  const isDisabled = midiStatus === "unsupported" && !webMidiLinkReady;
+  const buttonLabel = webMidiLinkReady
+    ? "WebMidiLink READY"
+    : midiStatus === "on"
+      ? "MIDI ON"
+      : midiStatus === "unsupported"
+        ? "NO MIDI"
+        : midiStatus === "error"
+          ? "MIDI ERR"
+          : "MIDI OFF";
+
   return (
     <div style={{ padding: "0 14px 14px" }}>
       <SectionHeader
         action={
           <button
             type="button"
-            disabled={midiStatus === "unsupported"}
+            disabled={isDisabled}
             onClick={onToggleMidi}
-            title="MIDIキーボード接続"
-            aria-label="MIDIキーボード接続"
+            title={webMidiLinkReady ? "WebMidiLink接続READY" : "MIDIキーボード接続"}
+            aria-label={webMidiLinkReady ? "WebMidiLink接続READY" : "MIDIキーボード接続"}
             style={{
-              minWidth: "72px",
+              minWidth: webMidiLinkReady ? "126px" : "72px",
               height: "22px",
               borderRadius: "7px",
               border: `1px solid ${
-                midiStatus === "on"
+                isReady
                   ? color
                   : midiStatus === "error"
                     ? "#F06A6A"
                     : "#CBD6E8"
               }`,
               background:
-                midiStatus === "on"
+                isReady
                   ? color
                   : midiStatus === "unsupported"
                     ? "#EEF2F8"
                     : "#FFFFFFAA",
               color:
-                midiStatus === "on"
+                isReady
                   ? "#FFFFFF"
                   : midiStatus === "error"
                     ? "#C64545"
                     : midiStatus === "unsupported"
                       ? "#9AA5BA"
                       : color,
-              cursor: midiStatus === "unsupported" ? "not-allowed" : "pointer",
+              cursor: isDisabled ? "not-allowed" : "pointer",
               fontFamily: "'Share Tech Mono',monospace",
-              fontSize: "9px",
+              fontSize: webMidiLinkReady ? "8px" : "9px",
               fontWeight: 700,
               letterSpacing: 0,
               padding: "0 7px",
               transition: "background .12s, color .12s, border-color .12s",
+              whiteSpace: "nowrap",
             }}
           >
-            {midiStatus === "on"
-              ? "MIDI ON"
-              : midiStatus === "unsupported"
-                ? "NO MIDI"
-                : midiStatus === "error"
-                  ? "MIDI ERR"
-                  : "MIDI OFF"}
+            {buttonLabel}
           </button>
         }
       >

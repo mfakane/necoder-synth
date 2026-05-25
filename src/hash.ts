@@ -29,28 +29,36 @@ const numFromHash = (
   return clamp(raw, min, max);
 };
 
-export const parseHashState = (): HashState => {
-  if (typeof window === "undefined") return {};
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+export const parseHashPatch = (patch: string): HashState => {
+  const params = new URLSearchParams(patch.replace(/^#/, ""));
   const voiceId = params.get("voice");
   const styleId = params.get("style");
   const voiceIndex = VOICES.findIndex((voice) => voice.id === voiceId);
   const styleIndex = CRY_STYLES.findIndex((style) => style.id === styleId);
-  return {
-    voiceIdx: voiceIndex >= 0 ? voiceIndex : undefined,
-    styleIdx: styleIndex >= 0 ? styleIndex : undefined,
-    morph: numFromHash(params, "morph", undefined, 0, 1),
-    curveStart: numFromHash(params, "curveStart", undefined, -12, 12),
-    curvePeak: numFromHash(params, "curvePeak", undefined, -12, 12),
-    curveEnd: numFromHash(params, "curveEnd", undefined, -12, 12),
-    ps: numFromHash(params, "pitch", undefined, -12, 12),
-    dm: numFromHash(params, "duration", undefined, 0.3, 2.5),
-    vib: numFromHash(params, "vibrato", undefined, 0, 3),
-    vm: numFromHash(params, "volume", undefined, 0.1, 1),
+  const state: HashState = {};
+  const setNumber = (key: keyof HashState, value: number | undefined) => {
+    if (value !== undefined) state[key] = value;
   };
+
+  if (voiceIndex >= 0) state.voiceIdx = voiceIndex;
+  if (styleIndex >= 0) state.styleIdx = styleIndex;
+  setNumber("morph", numFromHash(params, "morph", undefined, 0, 1));
+  setNumber("curveStart", numFromHash(params, "curveStart", undefined, -12, 12));
+  setNumber("curvePeak", numFromHash(params, "curvePeak", undefined, -12, 12));
+  setNumber("curveEnd", numFromHash(params, "curveEnd", undefined, -12, 12));
+  setNumber("ps", numFromHash(params, "pitch", undefined, -12, 12));
+  setNumber("dm", numFromHash(params, "duration", undefined, 0.3, 2.5));
+  setNumber("vib", numFromHash(params, "vibrato", undefined, 0, 3));
+  setNumber("vm", numFromHash(params, "volume", undefined, 0.1, 1));
+  return state;
 };
 
-export const makeHash = (state: FullHashState) => {
+export const parseHashState = (): HashState => {
+  if (typeof window === "undefined") return {};
+  return parseHashPatch(window.location.hash);
+};
+
+export const makeHashQuery = (state: FullHashState) => {
   const params = new URLSearchParams();
   params.set("voice", VOICES[state.voiceIdx].id);
   params.set("style", CRY_STYLES[state.styleIdx].id);
@@ -62,5 +70,7 @@ export const makeHash = (state: FullHashState) => {
   params.set("duration", state.dm.toFixed(2));
   params.set("vibrato", state.vib.toFixed(2));
   params.set("volume", state.vm.toFixed(2));
-  return `#${params.toString()}`;
+  return params.toString();
 };
+
+export const makeHash = (state: FullHashState) => `#${makeHashQuery(state)}`;
