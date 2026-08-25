@@ -65,6 +65,7 @@ export default function Necoder() {
   const [dm, setDm] = useState(init.dm ?? 1.0); // デュレーション倍率
   const [vib, setVib] = useState(init.vib ?? 1.0); // ビブラート倍率
   const [vm, setVm] = useState(init.vm ?? 0.8); // 音量倍率
+  const [flat, setFlat] = useState(init.flat ?? 0); // フラット度 (0=音色のまま)
   const [activeKey, setAK] = useState(null);
   const [midiStatus, setMidiStatus] = useState<MidiStatus>(
     typeof navigator !== "undefined" && navigator.requestMIDIAccess
@@ -103,11 +104,24 @@ export default function Necoder() {
         dm,
         vib,
         vm,
+        flat,
         ...next,
       };
       return buildHash(state);
     },
-    [voiceIdx, styleIdx, morph, curveStart, curvePeak, curveEnd, ps, dm, vib, vm],
+    [
+      voiceIdx,
+      styleIdx,
+      morph,
+      curveStart,
+      curvePeak,
+      curveEnd,
+      ps,
+      dm,
+      vib,
+      vm,
+      flat,
+    ],
   );
 
   const commitHash = useCallback(
@@ -187,6 +201,7 @@ export default function Necoder() {
       if (next.dm !== undefined) setDm(next.dm);
       if (next.vib !== undefined) setVib(next.vib);
       if (next.vm !== undefined) setVm(next.vm);
+      if (next.flat !== undefined) setFlat(next.flat);
       setDraftNums({});
     },
     [],
@@ -236,6 +251,7 @@ export default function Necoder() {
         dm,
         vib,
         vm: vm * velocityScale,
+        flat,
         morph,
         curveStart,
         curvePeak,
@@ -256,6 +272,7 @@ export default function Necoder() {
       dm,
       vib,
       vm,
+      flat,
       morph,
       curveStart,
       curvePeak,
@@ -416,6 +433,7 @@ export default function Necoder() {
           dm,
           vib,
           vm,
+          flat,
         });
         (event.source as Window).postMessage(`link,patch,${patch}`, "*");
         return;
@@ -437,6 +455,7 @@ export default function Necoder() {
     curvePeak,
     curveStart,
     dm,
+    flat,
     handleMidiNoteMessage,
     morph,
     ps,
@@ -603,6 +622,7 @@ export default function Necoder() {
       setDm(next.dm);
       setVib(next.vib);
       setVm(next.vm);
+      setFlat(next.flat);
       commitHash(next);
     },
     [clearParamDrafts, commitHash],
@@ -618,11 +638,12 @@ export default function Necoder() {
       dm: stepValue(0.4, 1.8, 0.1),
       vib: stepValue(0, 2.5, 0.1),
       vm: stepValue(0.45, 1, 0.05),
+      flat: stepValue(0, 0.4, 0.05), // 全フラットは鳴き声らしさが消えるので控えめにゃ
     });
   }, [setParamsAndCommit]);
 
   const resetParams = useCallback(() => {
-    setParamsAndCommit({ ps: 0, dm: 1, vib: 1, vm: 0.8 });
+    setParamsAndCommit({ ps: 0, dm: 1, vib: 1, vm: 0.8, flat: 0 });
   }, [setParamsAndCommit]);
 
   const sliders = [
@@ -690,6 +711,23 @@ export default function Necoder() {
       toInput: (v) => Math.round(v * 100),
       fromInput: (v) => Number((v / 100).toFixed(2)),
       inputMin: 10,
+      inputMax: 100,
+      inputStep: 5,
+      unit: "%",
+    },
+    {
+      label: "FLAT",
+      jp: "フラット度",
+      keyName: "flat",
+      val: flat,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      set: setFlat,
+      fmt: (v) => Math.round(v * 100),
+      toInput: (v) => Math.round(v * 100),
+      fromInput: (v) => Number((v / 100).toFixed(2)),
+      inputMin: 0,
       inputMax: 100,
       inputStep: 5,
       unit: "%",

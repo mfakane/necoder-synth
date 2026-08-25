@@ -16,8 +16,6 @@ export type Voice = {
   atkMul: number;
   relMul: number;
   vDAdd: number;
-  /** 自動ピッチ移動の量にゃ。1=標準、0=完全フラット。省略時は1 */
-  pitchMove?: number;
   /** 子音ノイズ・チャープ・ザラつきの量にゃ。1=標準、0=無し。省略時は1 */
   breath?: number;
 };
@@ -120,7 +118,7 @@ export const VOICES: Voice[] = [
     name: "サバトラ",
     emoji: "🩶",
     color: "#7C8FA6",
-    // ピッチはフラット。ド=C4 基準にして半音指定を素直にするにゃ
+    // s=pk=e でしゃくり上げ無し。ド=C4 基準にして半音指定を素直にするにゃ
     s: 261.63,
     pk: 261.63,
     e: 261.63,
@@ -134,7 +132,7 @@ export const VOICES: Voice[] = [
     atkMul: 1,
     relMul: 1,
     vDAdd: 0,
-    pitchMove: 0.06,
+    // 子音ノイズは薄めにゃ
     breath: 0.12,
   },
 ];

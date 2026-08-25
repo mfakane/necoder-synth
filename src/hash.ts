@@ -12,6 +12,7 @@ export type HashState = {
   dm?: number;
   vib?: number;
   vm?: number;
+  flat?: number;
 };
 
 export type FullHashState = Required<HashState>;
@@ -50,6 +51,7 @@ export const parseHashPatch = (patch: string): HashState => {
   setNumber("dm", numFromHash(params, "duration", undefined, 0.3, 2.5));
   setNumber("vib", numFromHash(params, "vibrato", undefined, 0, 3));
   setNumber("vm", numFromHash(params, "volume", undefined, 0.1, 1));
+  setNumber("flat", numFromHash(params, "flat", undefined, 0, 1));
   return state;
 };
 
@@ -70,6 +72,7 @@ export const makeHashQuery = (state: FullHashState) => {
   params.set("duration", state.dm.toFixed(2));
   params.set("vibrato", state.vib.toFixed(2));
   params.set("volume", state.vm.toFixed(2));
+  params.set("flat", state.flat.toFixed(2));
   return params.toString();
 };
 

@@ -13,7 +13,6 @@ export type SynthParams = {
   wave: OscillatorType;
   atk: number;
   rel: number;
-  pitchMove: number;
   breath: number;
 };
 
@@ -34,6 +33,7 @@ export type PlayMeowOptions = {
   curveStart?: number;
   curvePeak?: number;
   curveEnd?: number;
+  flat?: number;
 };
 
 export const clamp = (v: number, min: number, max: number) =>
@@ -63,7 +63,6 @@ export const composeParams = (voice: Voice, style: CryStyle): SynthParams => ({
   wave: style.wave || voice.wave,
   atk: style.atk * voice.atkMul,
   rel: style.rel * voice.relMul,
-  pitchMove: voice.pitchMove ?? 1,
   breath: voice.breath ?? 1,
 });
 
@@ -107,21 +106,22 @@ export function playMeow(
     wave,
     atk,
     rel,
-    pitchMove,
     breath,
   } = params;
-  const pm = clamp(pitchMove ?? 1, 0, 1);
+  // フラット度にゃ。1=鳴き声そのまま、0=ピッチが完全に平坦
+  const pm = 1 - clamp(opts.flat ?? 0, 0, 1);
   const br = clamp(breath ?? 1, 0, 1);
-  // pf を基準に、自動ピッチ移動の振れ幅を pm で縮めるにゃ (pm=1 で従来どおり)
+  // pf を基準に、自動ピッチ移動の振れ幅を縮めるにゃ (pm=1 でフラット度 0%)
   const toward = (target: number, base: number) =>
     pm >= 1 ? target : base + (target - base) * pm;
   const hasBreath = br > 0.001;
   const tone = morphTone(opts.morph || 0);
   const isVoice = tone.voice > 0.001;
   const tr = Math.pow(2, (semitone + (opts.ps || 0)) / 12);
-  const aDur = dur * (opts.dm || 1);
-  const v = vol * (opts.vm || 0.8);
-  const vibD = vD * (opts.vib || 1) * tr;
+  const aDur = dur * (opts.dm ?? 1);
+  const v = vol * (opts.vm ?? 0.8);
+  const vibMul = opts.vib ?? 1;
+  const vibD = vD * vibMul * tr;
   const now = ctx.currentTime;
 
   const osc = ctx.createOscillator();
@@ -158,7 +158,7 @@ export function playMeow(
   lfoG.gain.setValueAtTime(isVoice ? vibD * 0.25 : vibD, now);
   if (isVoice) {
     lfoG.gain.linearRampToValueAtTime(
-      vibD + (4 + tone.wobble * 12) * tr * pm,
+      vibD + (4 + tone.wobble * 12) * tr * pm * vibMul,
       now + aDur * 0.68,
     );
   }
@@ -182,7 +182,11 @@ export function playMeow(
   filt.connect(env);
   env.connect(dest);
 
-  const pf = pk * tr * semitoneRatio(opts.curvePeak || 0);
+  // フラットに寄せるほど平均律へスナップさせて、メロディを弾けるようにするにゃ
+  const pfRaw = pk * tr * semitoneRatio(opts.curvePeak || 0);
+  const pfTuned =
+    440 * Math.pow(2, Math.round(12 * Math.log2(pfRaw / 440)) / 12);
+  const pf = pm >= 1 ? pfRaw : pfRaw * Math.pow(pfTuned / pfRaw, 1 - pm);
   const sf = toward(s * tr * semitoneRatio(opts.curveStart || 0), pf);
   const ef = Math.max(
     toward(e * tr * semitoneRatio(opts.curveEnd || 0), pf),
