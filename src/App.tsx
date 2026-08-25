@@ -877,7 +877,7 @@ export default function Necoder() {
             <OptionGrid
               items={VOICES}
               selectedIndex={voiceIdx}
-              columns={4}
+              columns={5}
               accentColor={col}
               onSelect={(index) => {
                 setVoiceIdx(index);
@@ -897,7 +897,7 @@ export default function Necoder() {
             <OptionGrid
               items={CRY_STYLES}
               selectedIndex={styleIdx}
-              columns={4}
+              columns={5}
               accentColor={col}
               onSelect={(index) => {
                 setStyleIdx(index);

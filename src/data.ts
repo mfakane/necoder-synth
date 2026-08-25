@@ -16,6 +16,10 @@ export type Voice = {
   atkMul: number;
   relMul: number;
   vDAdd: number;
+  /** 自動ピッチ移動の量にゃ。1=標準、0=完全フラット。省略時は1 */
+  pitchMove?: number;
+  /** 子音ノイズ・チャープ・ザラつきの量にゃ。1=標準、0=無し。省略時は1 */
+  breath?: number;
 };
 
 export type CryStyle = {
@@ -111,6 +115,28 @@ export const VOICES: Voice[] = [
     relMul: 1.45,
     vDAdd: 7,
   },
+  {
+    id: "gray",
+    name: "サバトラ",
+    emoji: "🩶",
+    color: "#7C8FA6",
+    // ピッチはフラット。ド=C4 基準にして半音指定を素直にするにゃ
+    s: 261.63,
+    pk: 261.63,
+    e: 261.63,
+    // 音程によらず 700Hz 付近に居座る固定フォルマントにゃ
+    // (掃引で 1.5 倍まで開くので、中心はその手前に置く)
+    fFreq: 540,
+    fQ: 4,
+    vol: 0.5,
+    wave: "sawtooth",
+    durMul: 1,
+    atkMul: 1,
+    relMul: 1,
+    vDAdd: 0,
+    pitchMove: 0.06,
+    breath: 0.12,
+  },
 ];
 
 export const CRY_STYLES: CryStyle[] = [
@@ -178,6 +204,22 @@ export const CRY_STYLES: CryStyle[] = [
     volMul: 0.95,
     fMul: 0.9,
     fQAdd: -1,
+  },
+  {
+    id: "mya",
+    name: "みゃ",
+    mark: "😽",
+    sMul: 1,
+    pkMul: 1,
+    eMul: 1,
+    dur: 0.3,
+    atk: 0.05,
+    rel: 0.1,
+    vR: 5,
+    vD: 0,
+    volMul: 1,
+    fMul: 1,
+    fQAdd: 0,
   },
 ];
 

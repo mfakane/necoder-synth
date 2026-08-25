@@ -13,6 +13,8 @@ export type SynthParams = {
   wave: OscillatorType;
   atk: number;
   rel: number;
+  pitchMove: number;
+  breath: number;
 };
 
 export type MorphTone = {
@@ -61,6 +63,8 @@ export const composeParams = (voice: Voice, style: CryStyle): SynthParams => ({
   wave: style.wave || voice.wave,
   atk: style.atk * voice.atkMul,
   rel: style.rel * voice.relMul,
+  pitchMove: voice.pitchMove ?? 1,
+  breath: voice.breath ?? 1,
 });
 
 export const morphTone = (morph: number): MorphTone => {
@@ -90,7 +94,28 @@ export function playMeow(
   semitone = 0,
   opts: PlayMeowOptions = {},
 ) {
-  const { s, pk, e, dur, fFreq, fQ, vR, vD, vol, wave, atk, rel } = params;
+  const {
+    s,
+    pk,
+    e,
+    dur,
+    fFreq,
+    fQ,
+    vR,
+    vD,
+    vol,
+    wave,
+    atk,
+    rel,
+    pitchMove,
+    breath,
+  } = params;
+  const pm = clamp(pitchMove ?? 1, 0, 1);
+  const br = clamp(breath ?? 1, 0, 1);
+  // pf を基準に、自動ピッチ移動の振れ幅を pm で縮めるにゃ (pm=1 で従来どおり)
+  const toward = (target: number, base: number) =>
+    pm >= 1 ? target : base + (target - base) * pm;
+  const hasBreath = br > 0.001;
   const tone = morphTone(opts.morph || 0);
   const isVoice = tone.voice > 0.001;
   const tr = Math.pow(2, (semitone + (opts.ps || 0)) / 12);
@@ -117,7 +142,7 @@ export function playMeow(
   osc2.detune.value = 7;
   osc3.detune.value = -13;
   g2.gain.value = 0.3;
-  g3.gain.value = isVoice ? tone.rough * 0.18 : 0;
+  g3.gain.value = isVoice ? tone.rough * 0.18 * br : 0;
 
   filt.type = "bandpass";
   filt.frequency.value = fFreq;
@@ -133,7 +158,7 @@ export function playMeow(
   lfoG.gain.setValueAtTime(isVoice ? vibD * 0.25 : vibD, now);
   if (isVoice) {
     lfoG.gain.linearRampToValueAtTime(
-      vibD + (4 + tone.wobble * 12) * tr,
+      vibD + (4 + tone.wobble * 12) * tr * pm,
       now + aDur * 0.68,
     );
   }
@@ -157,9 +182,12 @@ export function playMeow(
   filt.connect(env);
   env.connect(dest);
 
-  const sf = s * tr * semitoneRatio(opts.curveStart || 0);
   const pf = pk * tr * semitoneRatio(opts.curvePeak || 0);
-  const ef = Math.max(e * tr * semitoneRatio(opts.curveEnd || 0), 20);
+  const sf = toward(s * tr * semitoneRatio(opts.curveStart || 0), pf);
+  const ef = Math.max(
+    toward(e * tr * semitoneRatio(opts.curveEnd || 0), pf),
+    20,
+  );
   const hasStartCurve = Math.abs(opts.curveStart || 0) > 0.001;
   const startHold = aDur * (isVoice ? 0.14 : 0.1);
   const peakTime = aDur * (isVoice ? (hasStartCurve ? 0.3 : 0.12) : 0.3);
@@ -170,13 +198,13 @@ export function playMeow(
     }
     o.frequency.linearRampToValueAtTime(pf, now + peakTime);
     if (isVoice) {
-      const flutter = 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble;
+      const flutter = 1 + (Math.random() * 0.035 - 0.0175) * tone.wobble * pm;
       o.frequency.linearRampToValueAtTime(
-        pf * (0.74 + tone.wobble * 0.08) * flutter,
+        toward(pf * (0.74 + tone.wobble * 0.08), pf) * flutter,
         now + aDur * 0.24,
       );
       o.frequency.linearRampToValueAtTime(
-        pf * (1.0 + tone.wobble * 0.08),
+        toward(pf * (1.0 + tone.wobble * 0.08), pf),
         now + aDur * 0.34,
       );
     }
@@ -206,54 +234,59 @@ export function playMeow(
       now + aDur,
     );
 
-    const noiseLen = Math.max(
-      1,
-      Math.floor(
-        ctx.sampleRate * Math.min(0.03 + tone.consonant * 0.08, aDur * 0.24),
-      ),
-    );
-    const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < noiseLen; i += 1) {
-      const decay = 1 - i / noiseLen;
-      data[i] = (Math.random() * 2 - 1) * decay * decay;
+    if (hasBreath) {
+      const noiseLen = Math.max(
+        1,
+        Math.floor(
+          ctx.sampleRate * Math.min(0.03 + tone.consonant * 0.08, aDur * 0.24),
+        ),
+      );
+      const noiseBuf = ctx.createBuffer(1, noiseLen, ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < noiseLen; i += 1) {
+        const decay = 1 - i / noiseLen;
+        data[i] = (Math.random() * 2 - 1) * decay * decay;
+      }
+      const noise = ctx.createBufferSource();
+      const noiseFilt = ctx.createBiquadFilter();
+      const noiseEnv = ctx.createGain();
+      const chirp = ctx.createOscillator();
+      const chirpGain = ctx.createGain();
+      noise.buffer = noiseBuf;
+      noiseFilt.type = "highpass";
+      noiseFilt.frequency.value = (950 + tone.consonant * 1800) * tr;
+      noiseFilt.Q.value = 0.7 + tone.consonant * 2.5;
+      noiseEnv.gain.setValueAtTime(v * tone.consonant * 0.38 * br, now);
+      noiseEnv.gain.exponentialRampToValueAtTime(
+        0.001,
+        now + noiseLen / ctx.sampleRate,
+      );
+      noise.connect(noiseFilt);
+      noiseFilt.connect(noiseEnv);
+      noiseEnv.connect(dest);
+
+      chirp.type = "triangle";
+      chirp.frequency.setValueAtTime(
+        pk * (1.0 + tone.consonant * 0.9) * tr,
+        now,
+      );
+      chirp.frequency.exponentialRampToValueAtTime(
+        Math.max(e * (0.95 + tone.consonant * 0.35) * tr, 60),
+        now + Math.min(aDur * 0.25, 0.18),
+      );
+      chirpGain.gain.setValueAtTime(v * tone.consonant * 0.13 * br, now);
+      chirpGain.gain.exponentialRampToValueAtTime(
+        0.001,
+        now + Math.min(aDur * 0.3, 0.22),
+      );
+      chirp.connect(chirpGain);
+      chirpGain.connect(dest);
+
+      noise.start(now);
+      noise.stop(now + noiseLen / ctx.sampleRate + 0.02);
+      chirp.start(now);
+      chirp.stop(now + Math.min(aDur * 0.4, 0.24));
     }
-    const noise = ctx.createBufferSource();
-    const noiseFilt = ctx.createBiquadFilter();
-    const noiseEnv = ctx.createGain();
-    const chirp = ctx.createOscillator();
-    const chirpGain = ctx.createGain();
-    noise.buffer = noiseBuf;
-    noiseFilt.type = "highpass";
-    noiseFilt.frequency.value = (950 + tone.consonant * 1800) * tr;
-    noiseFilt.Q.value = 0.7 + tone.consonant * 2.5;
-    noiseEnv.gain.setValueAtTime(v * tone.consonant * 0.38, now);
-    noiseEnv.gain.exponentialRampToValueAtTime(
-      0.001,
-      now + noiseLen / ctx.sampleRate,
-    );
-    noise.connect(noiseFilt);
-    noiseFilt.connect(noiseEnv);
-    noiseEnv.connect(dest);
-
-    chirp.type = "triangle";
-    chirp.frequency.setValueAtTime(pk * (1.0 + tone.consonant * 0.9) * tr, now);
-    chirp.frequency.exponentialRampToValueAtTime(
-      Math.max(e * (0.95 + tone.consonant * 0.35) * tr, 60),
-      now + Math.min(aDur * 0.25, 0.18),
-    );
-    chirpGain.gain.setValueAtTime(v * tone.consonant * 0.13, now);
-    chirpGain.gain.exponentialRampToValueAtTime(
-      0.001,
-      now + Math.min(aDur * 0.3, 0.22),
-    );
-    chirp.connect(chirpGain);
-    chirpGain.connect(dest);
-
-    noise.start(now);
-    noise.stop(now + noiseLen / ctx.sampleRate + 0.02);
-    chirp.start(now);
-    chirp.stop(now + Math.min(aDur * 0.4, 0.24));
   }
 
   env.gain.setValueAtTime(0.001, now);
