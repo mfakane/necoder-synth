@@ -7,7 +7,7 @@ import {
 import { KeyboardControls } from "./components/KeyboardControls";
 import { OptionGrid } from "./components/OptionGrid";
 import { SectionHeader } from "./components/SectionHeader";
-import { CRY_STYLES, KEYS, VOICES } from "./data";
+import { CRY_STYLES, KEYS, SAMPLE_PHRASE, VOICES } from "./data";
 import {
   makeHash as buildHash,
   makeHashQuery,
@@ -74,6 +74,7 @@ export default function Necoder() {
   );
   const [webMidiLinkReady, setWebMidiLinkReady] = useState(false);
   const [isPlay, setIP] = useState(false);
+  const [isPhrase, setIsPhrase] = useState(false);
   const [dispTxt, setDT] = useState("🐱  ネコーダーにゃ～");
   const [draftNums, setDraftNums] = useState<DraftNums>({});
 
@@ -87,6 +88,7 @@ export default function Necoder() {
   const activeMidiNotesRef = useRef(new Set());
   const activeKeyRef = useRef(null);
   const triggerRef = useRef(null);
+  const phraseTimersRef = useRef([]);
 
   const voice = VOICES[voiceIdx];
   const cryStyle = CRY_STYLES[styleIdx];
@@ -240,15 +242,21 @@ export default function Necoder() {
     return audioRef.current;
   }, []);
 
+  const clearPhraseTimers = useCallback(() => {
+    phraseTimersRef.current.forEach(clearTimeout);
+    phraseTimersRef.current = [];
+    setIsPhrase(false);
+  }, []);
+
   // 鳴らすにゃ！
   const trigger = useCallback(
-    (st = 0, velocityScale = 1) => {
+    (st = 0, velocityScale = 1, durScale = 1) => {
       const { ctx, an } = getAudio();
       const v = VOICES[voiceIdx];
       const style = CRY_STYLES[styleIdx];
       const dur = playMeow(ctx, an, composeParams(v, style), st, {
         ps,
-        dm,
+        dm: dm * durScale,
         vib,
         vm: vm * velocityScale,
         flat,
@@ -289,16 +297,45 @@ export default function Necoder() {
     triggerRef.current = trigger;
   }, [trigger]);
 
+  // サンプルフレーズを今の設定のまま演奏するにゃ🎵
+  const playPhrase = useCallback(() => {
+    if (phraseTimersRef.current.length) return;
+    const secPerBeat = 60 / SAMPLE_PHRASE.bpm;
+    const noteDur = composeParams(VOICES[voiceIdx], CRY_STYLES[styleIdx]).dur;
+    setIsPhrase(true);
+    SAMPLE_PHRASE.notes.forEach((note) => {
+      phraseTimersRef.current.push(
+        setTimeout(() => {
+          triggerRef.current?.(note.st, 1, note.durMul);
+          setAK(KEYS.find((keyDef) => keyDef.st === note.st)?.key ?? null);
+        }, note.beat * secPerBeat * 1000),
+      );
+    });
+    const last = SAMPLE_PHRASE.notes[SAMPLE_PHRASE.notes.length - 1];
+    const endSec = last.beat * secPerBeat + noteDur * dm * last.durMul;
+    phraseTimersRef.current.push(
+      setTimeout(() => {
+        phraseTimersRef.current = [];
+        setIsPhrase(false);
+        setAK(null);
+      }, endSec * 1000),
+    );
+  }, [dm, styleIdx, voiceIdx]);
+
+  // アンマウント時にタイマーを片付けるにゃ
+  useEffect(() => clearPhraseTimers, [clearPhraseTimers]);
+
   const stopAudio = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
+    clearPhraseTimers();
     setIP(false);
     setDT(`🐱  ネコーダー ${morphLabel(morph)}`);
     if (audioRef.current) {
       audioRef.current.ctx.close();
       audioRef.current = null;
     }
-  }, [morph]);
+  }, [clearPhraseTimers, morph]);
 
   const clearActiveMidiState = useCallback((resetKey = true) => {
     activeMidiNotesRef.current.clear();
@@ -1128,6 +1165,28 @@ export default function Necoder() {
               }
             >
               {isPlay ? `${cryStyle.mark}  ${voice.name} ${cryStyle.name}` : "🐾  にゃ～ん！"}
+            </button>
+            <button
+              onClick={playPhrase}
+              disabled={isPhrase}
+              title="今の設定のままサンプルフレーズを演奏するにゃ"
+              style={{
+                width: "100%",
+                marginTop: "8px",
+                padding: "9px",
+                borderRadius: "10px",
+                cursor: isPhrase ? "default" : "pointer",
+                background: isPhrase ? col + "18" : "#FFFFFFAA",
+                border: `1px solid ${col}`,
+                color: col,
+                fontFamily: "'Nunito',sans-serif",
+                fontWeight: 800,
+                fontSize: "12px",
+                letterSpacing: "2px",
+                transition: "background .08s",
+              }}
+            >
+              {isPhrase ? "♪  えんそうちゅう…" : "🎵  サンプルフレーズ"}
             </button>
           </div>
         </div>

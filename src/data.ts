@@ -224,6 +224,34 @@ export const CRY_STYLES: CryStyle[] = [
 ];
 
 // 半音は上段キー (W E T Y U) にゃ。st 昇順で持つと midiNoteToKey がそのまま引けるにゃ
+export type PhraseNote = {
+  /** 半音 (ド基準) */
+  st: number;
+  /** 発音位置 (拍) */
+  beat: number;
+  /** デュレーション倍率。長い音だけ伸ばすにゃ */
+  durMul: number;
+};
+
+export type Phrase = {
+  name: string;
+  bpm: number;
+  notes: PhraseNote[];
+};
+
+// 元ネタの猫フレーズにゃ。E-G-B♭-A-F、最後だけ伸ばすにゃ
+export const SAMPLE_PHRASE: Phrase = {
+  name: "サンプルフレーズ",
+  bpm: 90,
+  notes: [
+    { st: 4, beat: 0, durMul: 1 },
+    { st: 7, beat: 1, durMul: 1 },
+    { st: 10, beat: 2, durMul: 1 },
+    { st: 9, beat: 3, durMul: 1 },
+    { st: 5, beat: 3.5, durMul: 3.75 },
+  ],
+};
+
 export const KEYS: KeyDef[] = [
   { note: "ド", key: "a", st: 0 },
   { note: "ド♯", key: "w", st: 1, black: true },
