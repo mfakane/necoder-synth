@@ -837,7 +837,7 @@ export default function Necoder() {
                 marginTop: "2px",
               }}
             >
-              🐾 ネコーダー Chiptune Cat Synth v1.0
+              🐾 ネコーダー Chiptune Cat Synth v1.1
             </div>
           </div>
           <div
