@@ -42,6 +42,8 @@ export type KeyDef = {
   note: string;
   key: string;
   st: number;
+  /** 黒鍵にゃ。省略時は白鍵 */
+  black?: boolean;
 };
 
 export const VOICES: Voice[] = [
@@ -221,13 +223,19 @@ export const CRY_STYLES: CryStyle[] = [
   },
 ];
 
+// 半音は上段キー (W E T Y U) にゃ。st 昇順で持つと midiNoteToKey がそのまま引けるにゃ
 export const KEYS: KeyDef[] = [
   { note: "ド", key: "a", st: 0 },
+  { note: "ド♯", key: "w", st: 1, black: true },
   { note: "レ", key: "s", st: 2 },
+  { note: "レ♯", key: "e", st: 3, black: true },
   { note: "ミ", key: "d", st: 4 },
   { note: "ファ", key: "f", st: 5 },
+  { note: "ファ♯", key: "t", st: 6, black: true },
   { note: "ソ", key: "g", st: 7 },
+  { note: "ソ♯", key: "y", st: 8, black: true },
   { note: "ラ", key: "h", st: 9 },
+  { note: "ラ♯", key: "u", st: 10, black: true },
   { note: "シ", key: "j", st: 11 },
   { note: "ド↑", key: "k", st: 12 },
 ];

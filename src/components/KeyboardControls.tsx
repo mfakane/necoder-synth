@@ -33,6 +33,9 @@ export function KeyboardControls({
           ? "MIDI ERR"
           : "MIDI OFF";
 
+  const whiteKeys = KEYS.filter((keyDef) => !keyDef.black);
+  const blackKeys = KEYS.filter((keyDef) => keyDef.black);
+
   return (
     <div style={{ padding: "0 14px 14px" }}>
       <SectionHeader
@@ -84,8 +87,8 @@ export function KeyboardControls({
       >
         KEYBOARD / キーボード
       </SectionHeader>
-      <div style={{ display: "flex", gap: "4px" }}>
-        {KEYS.map((keyDef) => {
+      <div style={{ position: "relative", display: "flex", gap: "4px" }}>
+        {whiteKeys.map((keyDef) => {
           const active = activeKey === keyDef.key;
           return (
             <button
@@ -103,7 +106,7 @@ export function KeyboardControls({
                 background: active ? color : "#F9FBFF",
                 border: `1px solid ${active ? color : "#CBD6E8"}`,
                 borderRadius: "0 0 9px 9px",
-                padding: "26px 0 7px",
+                padding: "40px 0 7px",
                 cursor: "pointer",
                 display: "flex",
                 flexDirection: "column",
@@ -137,6 +140,66 @@ export function KeyboardControls({
             </button>
           );
         })}
+        {blackKeys.map((keyDef) => {
+          const active = activeKey === keyDef.key;
+          // 左にある白鍵の枚数がそのまま境界の位置にゃ
+          const boundary = whiteKeys.filter((w) => w.st < keyDef.st).length;
+          return (
+            <button
+              key={keyDef.key}
+              onMouseDown={() => onPressKey(keyDef.key, keyDef.st)}
+              onMouseUp={onReleaseKey}
+              onMouseLeave={onReleaseKey}
+              onTouchStart={(event) => {
+                event.preventDefault();
+                onPressKey(keyDef.key, keyDef.st);
+              }}
+              onTouchEnd={onReleaseKey}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: `calc(${(boundary / whiteKeys.length) * 100}% - 13px)`,
+                width: "26px",
+                height: "36px",
+                background: active ? color : "#2E3A52",
+                border: `1px solid ${active ? color : "#1E2738"}`,
+                borderRadius: "0 0 6px 6px",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "1px",
+                padding: "0 0 4px",
+                transition: "all .07s",
+                boxShadow: active
+                  ? `0 0 18px ${color}99`
+                  : "0 2px 4px #1E273855",
+              }}
+            >
+              <div
+                style={{
+                  color: "#FFFFFF",
+                  fontSize: "7px",
+                  fontWeight: 800,
+                  lineHeight: 1,
+                }}
+              >
+                {keyDef.note}
+              </div>
+              <div
+                style={{
+                  color: "#FFFFFFAA",
+                  fontSize: "7px",
+                  fontFamily: "'Share Tech Mono',monospace",
+                  lineHeight: 1,
+                }}
+              >
+                {keyDef.key.toUpperCase()}
+              </div>
+            </button>
+          );
+        })}
       </div>
       <div
         style={{
@@ -148,7 +211,7 @@ export function KeyboardControls({
           letterSpacing: "1px",
         }}
       >
-        A S D F G H J K キーでもにゃ～ん演奏できるにゃ 🐾
+        A S D F G H J K / W E T Y U キーでも演奏できるにゃ 🐾
       </div>
     </div>
   );
