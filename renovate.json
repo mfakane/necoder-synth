@@ -9,6 +9,13 @@
   },
   "packageRules": [
     {
+      "matchPackageNames": [
+        "vite",
+        "@vitejs/plugin-react"
+      ],
+      "groupName": "vite"
+    },
+    {
       "matchUpdateTypes": [
         "minor",
         "patch"
